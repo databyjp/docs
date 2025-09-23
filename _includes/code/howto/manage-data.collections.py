@@ -654,6 +654,38 @@ collection = client.collections.use("Article")
 config = collection.config.get()
 assert config.vector_config["default"].vector_index_config.distance_metric.value == "cosine"
 
+# ===================================
+# ===== CLUSTER RESHARDING =====
+# ===================================
+
+# START ClusterResharding
+from weaviate.classes.config import Configure
+
+# Initiate resharding operation
+articles = client.collections.use("Article")
+
+# Doc writer / engineer TODO: Exact method to be confirmed
+result = articles.resharding.start(
+    target_shard_count=5,  # New number of desired shards
+    migration_config=Configure.Resharding.migration(
+        speed="medium",  # Throttling configuration
+        batch_size=1000  # Number of vectors per batch
+    ),
+    validation_settings=Configure.Resharding.validation(
+        consistency_checks=True,
+        error_threshold=0.01  # Maximum acceptable error rate
+    )
+)
+
+# Monitor resharding progress
+progress = articles.resharding.get_status()
+print(f"Resharding progress: {progress.percentage_complete}%")
+
+# Handle potential rollback scenarios
+if progress.status == "FAILED":
+    articles.resharding.rollback()
+# END ClusterResharding
+
 client.close()
 
 # =======================
@@ -681,6 +713,38 @@ client.collections.create(
 collection = client.collections.use("Article")
 config = collection.config.get()
 assert config.replication_config.factor == 3
+
+# ===================================
+# ===== CLUSTER RESHARDING =====
+# ===================================
+
+# START ClusterResharding
+from weaviate.classes.config import Configure
+
+# Initiate resharding operation
+articles = client.collections.use("Article")
+
+# Doc writer / engineer TODO: Exact method to be confirmed
+result = articles.resharding.start(
+    target_shard_count=5,  # New number of desired shards
+    migration_config=Configure.Resharding.migration(
+        speed="medium",  # Throttling configuration
+        batch_size=1000  # Number of vectors per batch
+    ),
+    validation_settings=Configure.Resharding.validation(
+        consistency_checks=True,
+        error_threshold=0.01  # Maximum acceptable error rate
+    )
+)
+
+# Monitor resharding progress
+progress = articles.resharding.get_status()
+print(f"Resharding progress: {progress.percentage_complete}%")
+
+# Handle potential rollback scenarios
+if progress.status == "FAILED":
+    articles.resharding.rollback()
+# END ClusterResharding
 
 client.close()
 
@@ -712,6 +776,38 @@ client.collections.create(
 collection = client.collections.use("Article")
 config = collection.config.get()
 # assert config.replication_config.factor == 3   #ASYNC NEEDS TEST
+
+# ===================================
+# ===== CLUSTER RESHARDING =====
+# ===================================
+
+# START ClusterResharding
+from weaviate.classes.config import Configure
+
+# Initiate resharding operation
+articles = client.collections.use("Article")
+
+# Doc writer / engineer TODO: Exact method to be confirmed
+result = articles.resharding.start(
+    target_shard_count=5,  # New number of desired shards
+    migration_config=Configure.Resharding.migration(
+        speed="medium",  # Throttling configuration
+        batch_size=1000  # Number of vectors per batch
+    ),
+    validation_settings=Configure.Resharding.validation(
+        consistency_checks=True,
+        error_threshold=0.01  # Maximum acceptable error rate
+    )
+)
+
+# Monitor resharding progress
+progress = articles.resharding.get_status()
+print(f"Resharding progress: {progress.percentage_complete}%")
+
+# Handle potential rollback scenarios
+if progress.status == "FAILED":
+    articles.resharding.rollback()
+# END ClusterResharding
 
 client.close()
 
@@ -748,6 +844,38 @@ assert (
     config.replication_config.deletion_strategy
     == ReplicationDeletionStrategy.TIME_BASED_RESOLUTION
 )
+
+# ===================================
+# ===== CLUSTER RESHARDING =====
+# ===================================
+
+# START ClusterResharding
+from weaviate.classes.config import Configure
+
+# Initiate resharding operation
+articles = client.collections.use("Article")
+
+# Doc writer / engineer TODO: Exact method to be confirmed
+result = articles.resharding.start(
+    target_shard_count=5,  # New number of desired shards
+    migration_config=Configure.Resharding.migration(
+        speed="medium",  # Throttling configuration
+        batch_size=1000  # Number of vectors per batch
+    ),
+    validation_settings=Configure.Resharding.validation(
+        consistency_checks=True,
+        error_threshold=0.01  # Maximum acceptable error rate
+    )
+)
+
+# Monitor resharding progress
+progress = articles.resharding.get_status()
+print(f"Resharding progress: {progress.percentage_complete}%")
+
+# Handle potential rollback scenarios
+if progress.status == "FAILED":
+    articles.resharding.rollback()
+# END ClusterResharding
 
 client.close()
 
@@ -996,5 +1124,37 @@ article_shards = articles.config.update_shards(
 print(article_shards)
 # END UpdateCollectionShards
 
+
+# ===================================
+# ===== CLUSTER RESHARDING =====
+# ===================================
+
+# START ClusterResharding
+from weaviate.classes.config import Configure
+
+# Initiate resharding operation
+articles = client.collections.use("Article")
+
+# Doc writer / engineer TODO: Exact method to be confirmed
+result = articles.resharding.start(
+    target_shard_count=5,  # New number of desired shards
+    migration_config=Configure.Resharding.migration(
+        speed="medium",  # Throttling configuration
+        batch_size=1000  # Number of vectors per batch
+    ),
+    validation_settings=Configure.Resharding.validation(
+        consistency_checks=True,
+        error_threshold=0.01  # Maximum acceptable error rate
+    )
+)
+
+# Monitor resharding progress
+progress = articles.resharding.get_status()
+print(f"Resharding progress: {progress.percentage_complete}%")
+
+# Handle potential rollback scenarios
+if progress.status == "FAILED":
+    articles.resharding.rollback()
+# END ClusterResharding
 
 client.close()
