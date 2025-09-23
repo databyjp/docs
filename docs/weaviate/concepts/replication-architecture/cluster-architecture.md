@@ -77,6 +77,45 @@ The main advantage of a leaderless replication design is improved fault toleranc
 
 On the flipside of high availability, a leaderless database tends to be less consistent. Because there is no leader node, data on different nodes may temporarily be out of date. Leaderless databases tend to be eventually consistent. Consistency in Weaviate is [tunable](./consistency.md), but this occurs at the expense of availability.
 
+## Dynamic Resharding
+
+In response to evolving cluster performance needs, Weaviate now supports dynamic resharding, a sophisticated mechanism that allows administrators to redistribute data across nodes without system downtime. This feature enhances the leaderless architecture by providing granular control over data distribution and load balancing.
+
+### Resharding Mechanism
+
+Dynamic resharding works by creating new shard mappings and migrating vector embeddings and metadata in carefully controlled batches. The process involves:
+
+1. **Shard Mapping Reconfiguration**: Generate a new distributed hash ring that defines how data will be redistributed across nodes.
+2. **Batch Migration**: Transfer vector embeddings and metadata in configurable batch sizes to minimize performance impact.
+3. **Distributed Coordination**: Leverage the existing leaderless coordination pattern to manage migration without disrupting the overall system architecture.
+
+### Key Capabilities
+
+- **Automatic Load Balancing**: Intelligent migration algorithms prevent node overload during resharding.
+- **Configurable Migration**: Administrators can control batch sizes and migration speed to minimize performance interruptions.
+- **Consistency Guarantees**: Real-time consistency checks ensure data integrity throughout the resharding process.
+- **Operational Safety**: 
+  - Rollback support in case of migration failures
+  - Monitoring endpoints to track resharding progress
+  - Minimal disruption to existing read/write patterns
+
+### Impact on Operations
+
+During resharding:
+- Read operations continue normally without interruption
+- Write operations are temporarily queued and replayed after shard migration completes
+- No downtime is required for the cluster
+
+### Use Cases
+
+Dynamic resharding is particularly valuable in scenarios such as:
+- Scaling clusters under heavy load
+- Rebalancing after node additions or removals
+- Optimizing shard distribution for specific query performance patterns
+
+:::note Implementation Details
+For specific implementation instructions, refer to the [Cluster Resharding](/path/to/resharding/guide) documentation.
+:::
 
 ## Replication Factor
 

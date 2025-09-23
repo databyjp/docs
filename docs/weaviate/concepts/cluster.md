@@ -163,7 +163,33 @@ Shards were assigned to 'live' nodes in a round-robin fashion starting with a ra
 
 * Starting with `v1.25.0`, Weaviate adopts the [Raft consensus algorithm](https://raft.github.io/) which is a log-based algorithm coordinated by an elected leader. This brings an additional benefit in that concurrent schema changes are now supported.<br/>If you are a Kubernetes user, see the [`1.25 migration guide`](/deploy/migration/weaviate-1-25.md) before you upgrade. To upgrade, you have to delete your existing StatefulSet.
 * As of `v1.8.0`, the process of broadcasting schema changes across the cluster uses a form of two-phase transaction that as of now cannot tolerate node failures during the lifetime of the transaction.
-* As of `v1.8.0`, dynamically scaling a cluster is not fully supported yet. New nodes can be added to an existing cluster, however it does not affect the ownership of shards. Existing nodes can not yet be removed if data is present, as shards are not yet being moved to other nodes prior to a removal of a node.
+* With the introduction of cluster resharding, Weaviate now supports dynamic scaling of clusters, allowing administrators to redistribute data across nodes efficiently and without downtime.
+
+## Cluster Resharding
+
+Weaviate now supports dynamic cluster resharding, a powerful feature that allows administrators to redistribute data across nodes for improved performance and scalability. This capability enables you to adjust the number of shards in an existing cluster without experiencing downtime.
+
+### Key Resharding Capabilities
+
+- **Automatic Load Balancing**: Prevents node overload during data migration
+- **Configurable Migration**: Control batch sizes and migration speed
+- **Data Integrity**: Real-time consistency checks ensure data accuracy
+- **Resilience**: Rollback support in case of migration failures
+- **Monitoring**: Dedicated endpoints to track resharding progress
+
+### Resharding Process
+
+Resharding is triggered via the `/v1/cluster/resharding` API endpoint. During the resharding operation:
+- Read operations continue normally
+- Write operations are temporarily queued and replayed after shard migration completes
+
+### Typical Use Cases
+
+1. **Scaling Under Heavy Load**: Redistribute data when cluster performance becomes constrained
+2. **Node Rebalancing**: Optimize data distribution after adding or removing nodes
+3. **Query Performance Optimization**: Adjust shard distribution to match evolving query patterns
+
+For specific API usage and configuration details, refer to the [multi-node setup documentation](/docs/weaviate/manage-collections/multi-node-setup.mdx).
 
 ## Questions and feedback
 

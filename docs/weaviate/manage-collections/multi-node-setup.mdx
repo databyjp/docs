@@ -202,6 +202,41 @@ import CodeSchemaShardsUpdate from "/_includes/code/howto/manage-data.shards.upd
 
 <CodeSchemaShardsUpdate />
 
+## Cluster Resharding
+
+Weaviate now supports dynamic resharding of multi-node clusters to redistribute data across nodes, improving performance and scalability.
+
+### Key Features
+- Dynamically adjust the number of shards in an existing cluster without downtime
+- Automatic load balancing during migration to prevent node overload
+- Configurable batch sizes and migration speed throttling
+- Real-time consistency checks to ensure data integrity
+- Built-in rollback support in case of migration failures
+- Monitoring endpoints to track resharding progress
+
+### Resharding Configuration
+
+The resharding operation is triggered via the `/v1/cluster/resharding` API endpoint with the following parameters:
+
+- `target_shard_count`: Desired number of shards after redistribution
+- `migration_speed`: Controls the rate of data migration
+- `validation_settings`: Configuration for data consistency checks
+
+:::note Client Libraries
+Native resharding functions for Weaviate client libraries (Python, JS/TS, Go, Java) will be available. Exact syntax is pending finalization.
+:::
+
+### Operational Behavior
+- Read operations continue normally during resharding
+- Write operations are temporarily queued and replayed after shard migration completes
+
+### Use Cases
+- Scaling up clusters under heavy load
+- Rebalancing after node additions or removals
+- Optimizing shard distribution for specific query performance patterns
+
+For more details on the architectural implementation, see [Cluster Architecture](/weaviate/concepts/cluster-architecture).
+
 ## Further resources
 
 - <SkipLink href="/weaviate/api/rest#tag/schema/post/schema">API References: REST: Schema</SkipLink>
