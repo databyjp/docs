@@ -4,7 +4,7 @@ sidebar_position: 50
 image: og/docs/indexing.jpg
 ---
 
-Weaviate uses two types of indexes to facilitate fast, scalable search and filtering. It uses vector indexes for vector searches and inverted indexes for filtering and keyword searches.
+Weaviate uses multiple types of indexes to facilitate fast, scalable search and filtering. It uses vector indexes (including HNSW, flat, dynamic, and SPFresh) for vector searches and inverted indexes for filtering and keyword searches.
 
 This page introduces the [vector indexes](#vector-indexes) and [inverted indexes](#inverted-indexes) available in Weaviate, so you can arrive at an informed indexing strategy.
 
@@ -19,6 +19,7 @@ Vector indexes can use *hot* or *warm* resources, depending on the index type. I
     - If your object count is low, consider a flat index.
     - For larger data sets, use an HNSW index.
     - If you are unsure, use a dynamic index.
+- For billion-scale datasets with frequent updates, consider [SPFresh index](#spfresh-indexes) to maintain stable performance.
 - If you can trade off some accuracy, consider using [compression](./compression.mdx):
     - For HNSW indexes, [PQ](../../configuration/compression/pq-compression.md)/[SQ](../../configuration/compression/sq-compression.md)/[BQ](../../configuration/compression/bq-compression.md) can reduce memory requirements.
     - For flat indexes, [binary quantization (BQ)](../../configuration/compression/bq-compression.md) can improve search speeds.
@@ -30,11 +31,12 @@ Vector indexes can use *hot* or *warm* resources, depending on the index type. I
 
 ## Vector indexes
 
-Weaviate offers three types of vector indexes, [Hierarchical Navigable Small World (HNSW) indexes](#hnsw-indexes), [flat indexes](#flat-indexes) and [dynamic indexes](#dynamic-indexes).
+Weaviate offers four types of vector indexes: [Hierarchical Navigable Small World (HNSW) indexes](#hnsw-indexes), [flat indexes](#flat-indexes), [dynamic indexes](#dynamic-indexes), and [SPFresh indexes](#spfresh-indexes).
 
 - HNSW indexes enable fast, scalable vector searching that works well even with very large data sets.
 - Flat indexes are memory-efficient indexes that work best with small data sets.
 - Dynamic indexes switch from a flat index to an HNSW index when a [collection](../../concepts/data.md#collections) or [tenant](../../concepts/data.md#multi-tenancy) reaches a threshold size.
+- SPFresh indexes are hybrid disk-based indexes designed for billion-scale datasets with frequent updates, maintaining stable performance during continuous data changes.
 
 #### HNSW indexes
 
@@ -90,6 +92,25 @@ This table shows how a dynamic index changes as the number of objects in a colle
 :::info Configure the flat index and the HNSW index
 Configure the flat index and the HNSW index when you define the dynamic index. The dynamic index uses the flat index initially, then switches to the HNSW index. Both indexes should be configured before they are used.
 :::
+
+#### SPFresh indexes
+
+[SPFresh indexes](/weaviate/concepts/vector-index#spfresh-index) are hybrid disk-based indexes specifically designed for high-update scenarios and billion-scale datasets. SPFresh maintains partition centroids in an in-memory HNSW index for fast candidate selection, while storing vector partitions on disk.
+
+Key characteristics of SPFresh indexes:
+
+- **Incremental updates**: Supports in-place vector updates without requiring global index rebuilds
+- **Stable performance**: Maintains consistent search latency and accuracy during continuous data updates
+- **Resource efficient**: Uses primarily [*warm* resources](./index.md) for disk storage, with minimal [*hot* resources](./index.md) for the small centroid index in memory
+- **Automatic rebalancing**: Uses LIRE (Lightweight Incremental REbalancing) to maintain index quality through local partition management
+
+SPFresh indexes are ideal for:
+- Collections with frequent updates (>1% daily update rate)
+- Billion-scale datasets where periodic HNSW rebuilds are too expensive
+- Applications requiring fresh data without performance degradation
+- Use cases needing stable tail latency during updates
+
+Memory requirements for SPFresh are significantly lower than full HNSW indexes, typically requiring only ~10-20GB for billion-scale datasets, as most data resides on disk with only partition centroids kept in memory.
 
 ### Asynchronous vector indexing
 

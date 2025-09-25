@@ -4,11 +4,12 @@ description: Reference for vector index types and parameters in Weaviate.
 ---
 
 **[Vector indexes](../../concepts/indexing/vector-index.md)** facilitate efficient, vector-first data storage and retrieval.
-There are three supported vector index types:
+There are four supported vector index types:
 
 - **[HNSW index](#hnsw-index)**
 - **[Flat index](#flat-index)**
 - **[Dynamic index](#dynamic-index)**
+- **[SPFresh index](#spfresh-index)**
 
 ## Index configuration parameters
 
@@ -20,13 +21,13 @@ Use these parameters to configure the index type and their properties. They can 
 
 | Parameter           | Type   | Default | Details                                                              |
 | :------------------ | :----- | :------ | :------------------------------------------------------------------- |
-| `vectorIndexType`   | string | `hnsw`  | Optional. The index type - can be `hnsw`, `flat` or `dynamic`.       |
+| `vectorIndexType`   | string | `hnsw`  | Optional. The index type - can be `hnsw`, `flat`, `dynamic` or `spfresh`.       |
 | `vectorIndexConfig` | object | -       | Optional. Set parameters that are specific to the vector index type. |
 
 <details>
   <summary>How to select the index type</summary>
 
-Generally, the `hnsw` index type is recommended for most use cases. The `flat` index type is recommended for use cases where the data the number of objects per index is low, such as in multi-tenancy cases. You can also opt for the `dynamic` index which will initially configure a `flat` index and once the object count exceeds a specified threshold it will automatically convert to an `hnsw` index.
+Generally, the `hnsw` index type is recommended for most use cases. The `flat` index type is recommended for use cases where the data the number of objects per index is low, such as in multi-tenancy cases. You can also opt for the `dynamic` index which will initially configure a `flat` index and once the object count exceeds a specified threshold it will automatically convert to an `hnsw` index. The `spfresh` index is recommended for billion-scale datasets with frequent updates (>1% daily update rate) where maintaining stable performance during continuous updates is critical.
 
 See [this section](../../concepts/indexing/vector-index.md#which-vector-index-is-right-for-me) for more information about the different index types and how to choose between them.
 
@@ -165,6 +166,89 @@ The goal of `dynamic` indexing is to shorten latencies during query time at the 
 | `hnsw`      | object  | default HNSW | [HNSW index configuration](#hnsw-index-parameters) to be used.                        |
 | `flat`      | object  | default Flat | [Flat index configuration](#flat-index) to be used.                                   |
 | `threshold` | integer | 10000        | Threshold object count at which `flat` to `hnsw` conversion happens                   |
+
+## SPFresh index
+
+:::info Added in `v1.33`
+:::
+
+SPFresh is a hybrid disk-based vector index designed for billion-scale datasets that require frequent updates. It combines an in-memory HNSW index for partition centroids with disk-based vector storage, enabling efficient in-place updates without requiring costly global rebuilds.
+
+### Architecture
+
+SPFresh uses a two-tier architecture:
+- **In-memory HNSW index**: Stores partition centroids for fast nearest-partition lookup
+- **Disk-based partitions**: Store the actual vectors, organized by proximity to centroids
+- **Background rebalancing**: Automatically maintains partition quality through local splits and reassignments
+
+### Key features
+
+- **Fast partition selection**: HNSW index on centroids provides O(log n) partition lookup
+- **In-place updates**: Append vectors directly without requiring global index rebuilds
+- **Incremental rebalancing**: Uses LIRE (Lightweight Incremental REbalancing) to maintain index quality
+- **Low resource overhead**: Requires ~1% of DRAM and <10% of CPU cores compared to global rebuild
+- **Stable performance**: Consistent search latency and accuracy during continuous updates
+
+### When to use SPFresh
+
+- Collections with frequent updates (>1% daily update rate)
+- Billion-scale datasets where global rebuilds are too expensive
+- Use cases requiring stable tail latency during updates
+- Applications needing fresh data without performance degradation
+
+### Memory requirements
+
+For billion-scale datasets, SPFresh typically requires:
+- **HNSW centroid index**: ~40 bytes per partition (for 1B vectors with 100K partitions = ~4GB)
+- **Block mapping metadata**: ~40 bytes per partition (~4GB for billion-scale)
+- **Version tracking**: 1 byte per vector for reassignment tracking (~1GB for billion-scale)
+- **Total**: ~10-20GB for billion-scale datasets
+
+### SPFresh index parameters
+
+| Parameter               | Type    | Default | Mutable | Description                                                                                                                                                                                                                                                                                                          |
+| :---------------------- | :------ | :------ | :------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `distance`              | string  | `cosine`| No      | Distance metric. The metric that measures the distance between two arbitrary vectors. For available distance metrics, see [supported distance metrics](/weaviate/config-refs/distances.md).                                                                                                                         |
+| `maxPostingSize`        | integer | 10000   | Yes     | Maximum vectors per partition before split triggers. When a partition exceeds this size, it splits into two partitions with recomputed centroids.                                                                                                                                                                   |
+| `minPostingSize`        | integer | 1000    | Yes     | Minimum partition size before merge is considered. Helps prevent overly small partitions that could hurt performance.                                                                                                                                                                                                |
+| `reassignRange`         | integer | 64      | Yes     | Number of nearby partitions to check for reassignment during rebalancing. Higher values improve index quality but increase rebalancing overhead.                                                                                                                                                                    |
+| `vectorCacheMaxObjects` | integer | `1e12`  | Yes     | Maximum number of objects in the memory cache. By default, this limit is set to one trillion (`1e12`) objects when a new collection is created. For sizing recommendations, see [Vector cache considerations](../../concepts/indexing/vector-index.md#vector-cache-considerations).                            |
+| `ef`                    | integer | -1      | Yes     | Search list size for HNSW centroid index. When set to -1, uses dynamic ef adjustment. Higher values improve recall at the cost of slower centroid search. Since centroids are much fewer than vectors, this has less impact on overall performance compared to regular HNSW.                                   |
+| `efConstruction`        | integer | 128     | No      | Build parameter for HNSW centroid index. Higher values create better centroid connectivity during initial index construction, improving search quality at the cost of longer build time.                                                                                                                            |
+| `flatSearchCutoff`      | integer | 40000   | Yes     | Optional. Threshold for the [flat-search cutoff](/weaviate/concepts/filtering.md#flat-search-cutoff). To force a vector index search, set `"flatSearchCutoff": 0`.                                                                                                                                              |
+| `skip`                  | boolean | `false` | No      | When true, do not index the collection. <br/><br/> Weaviate decouples vector creation and vector storage. If you skip vector indexing, but a vectorizer is configured (or a vector is provided manually), Weaviate logs a warning each import. <br/><br/> To skip indexing and vector generation, set `"vectorizer": "none"` when you set `"skip": true`. <br/><br/> See [When to skip indexing](../../concepts/indexing/vector-index.md#when-to-skip-indexing). |
+
+### SPFresh configuration tips
+
+To optimize SPFresh performance for your use case, consider these guidelines:
+
+#### For high-update workloads
+- **Lower `maxPostingSize` (5000-8000)**: More frequent splits reduce the impact of individual updates but increase rebalancing overhead
+- **Moderate `reassignRange` (32-64)**: Balance between index quality and rebalancing cost
+- **Monitor partition distribution**: Ensure partitions don't become too imbalanced
+
+#### For billion-scale datasets
+- **Higher `maxPostingSize` (10000-15000)**: Reduce the total number of partitions and memory overhead
+- **Higher `reassignRange` (64-128)**: Improve index quality for better recall
+- **Ensure sufficient IOPS**: Disk performance is critical for partition loading
+
+#### For mixed read/write workloads
+- **Balanced `maxPostingSize` (8000-12000)**: Balance between update efficiency and search performance
+- **Dynamic `ef` (-1)**: Let Weaviate automatically adjust centroid search parameters
+- **Monitor cache hit rates**: Adjust `vectorCacheMaxObjects` based on working set size
+
+:::tip Starting configuration
+This set of values provides a good balance for most SPFresh use cases:
+
+| Parameter        | Value |
+| :--------------- | :---- |
+| `maxPostingSize` | `10000` |
+| `minPostingSize` | `1000` |
+| `reassignRange`  | `64` |
+| `ef`             | `-1` |
+| `efConstruction` | `128` |
+
+:::
 
 ## Quantization parameters
 

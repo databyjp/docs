@@ -7,7 +7,7 @@ slug: /weaviate/concepts/vector-index
 # tags: ['vector index plugins']
 ---
 
-What is vector indexing? It's a key component of vector databases that helps to [significantly **increase the speed** of the search process of similarity search](https://weaviate.io/blog/vector-search-explained) with only a minimal tradeoff in search accuracy ([HNSW index](#hierarchical-navigable-small-world-hnsw-index)), or efficiently store many subsets of data in a small memory footprint ([flat index](#flat-index)). The [dynamic index](#dynamic-index) can even start off as a flat index and then dynamically switch to the HNSW index as it scales past a threshold.
+What is vector indexing? It's a key component of vector databases that helps to [significantly **increase the speed** of the search process of similarity search](https://weaviate.io/blog/vector-search-explained) with only a minimal tradeoff in search accuracy ([HNSW index](#hierarchical-navigable-small-world-hnsw-index)), or efficiently store many subsets of data in a small memory footprint ([flat index](#flat-index)). The [dynamic index](#dynamic-index) can even start off as a flat index and then dynamically switch to the HNSW index as it scales past a threshold. For continuously updating billion-scale datasets, the [SPFresh index](#spfresh-index) provides efficient in-place updates without requiring expensive periodic rebuilds.
 
 Weaviate's vector-first storage system takes care of all storage operations with a vector index. Storing data in a vector-first manner not only allows for semantic or context-based search, but also makes it possible to store *very* large amounts of data without decreasing performance (assuming scaled well horizontally or having sufficient shards for the indexes).
 
@@ -15,6 +15,7 @@ Weaviate supports these vector index types:
 * [flat index](#flat-index): a simple, lightweight index that is designed for small datasets.
 * [HNSW index](#hierarchical-navigable-small-world-hnsw-index): a more complex index that is slower to build, but it scales well to large datasets as queries have a logarithmic time complexity.
 * [dynamic index](#dynamic-index): allows you to automatically switch from a flat index to an HNSW index as object count scales
+* [SPFresh index](#spfresh-index): a hybrid disk-based index optimized for billion-scale datasets with frequent updates, supporting incremental rebalancing without global rebuilds
 
 :::caution Experimental feature
 Available starting in `v1.25`. This is an experimental feature. Use with caution.
@@ -210,6 +211,61 @@ Currently, this is only a one-way upgrade from a flat to an HNSW index, it does 
 
 This is particularly useful in a multi-tenant setup where building an HNSW index per tenant would introduce extra overhead. With a dynamic index, as individual tenants grow their index will switch from flat to HNSW, while smaller tenants' indexes remain flat.
 
+## SPFresh index
+
+:::info Added in `v1.29`
+:::
+
+The **SPFresh index** is a hybrid disk-based vector index designed for billion-scale datasets with frequent updates. Unlike traditional approaches that require expensive periodic rebuilds, SPFresh supports incremental in-place updates while maintaining search performance through intelligent partitioning and background rebalancing.
+
+### Architecture and Design
+
+Think of SPFresh like an intelligently organized supermarket for vectors. Instead of storing all products (vectors) in one giant warehouse where finding anything requires searching everything, SPFresh creates specialized departments (partitions) and maintains a smart directory (centroid HNSW index) that quickly tells you which department contains what you're looking for.
+
+SPFresh uses a two-tier architecture:
+
+- **In-memory HNSW centroid index**: A lightweight navigation layer that stores partition centroids ("department locations") for fast candidate selection
+- **Disk-based vector partitions**: The actual storage layer where vectors are organized by similarity into manageable groups
+
+This hybrid approach combines the best of both worlds: the speed of in-memory search for navigation with the scalability and cost-effectiveness of disk storage for the bulk data.
+
+### How SPFresh works
+
+**Search Process:**
+1. **Fast partition selection**: Your query vector searches the in-memory HNSW index to find the most relevant partition centroids
+2. **Parallel partition loading**: The identified partitions are loaded from disk in parallel for efficient I/O
+3. **Precise matching**: Full distance calculations are performed on candidate vectors within the loaded partitions
+4. **Result compilation**: The top-K most similar vectors are returned
+
+**Update Process:**
+1. **Smart assignment**: New vectors are assigned to the nearest partition using the centroid HNSW index
+2. **Incremental growth**: Vectors are appended directly to disk partitions without rebuilding
+3. **Automatic splitting**: When a partition grows beyond the configured size, it splits into two optimized partitions
+4. **Lightweight rebalancing**: The LIRE (Lightweight Incremental REbalancing) system maintains index quality by checking nearby partitions and reassigning only boundary vectors that would improve clustering
+
+This contrasts sharply with traditional HNSW indexes, which maintain complex graph structures that become increasingly expensive to update as they grow.
+
+### Key Benefits
+
+**Stable Performance During Updates**: Unlike HNSW indexes where update costs grow with dataset size, SPFresh maintains consistent performance through localized operations. Updates only affect specific partitions rather than the entire graph structure.
+
+**Resource Efficiency**: SPFresh requires only about 1% of the DRAM and less than 10% of the CPU resources compared to global index rebuilds, making it practical for continuously updating production systems.
+
+**Incremental Rebalancing**: The LIRE system maintains index quality through intelligent local operations rather than expensive global restructuring. Only vectors near partition boundaries are considered for reassignment, minimizing computational overhead.
+
+**Billion-Scale Capability**: The memory footprint grows predictably with dataset size - approximately 10-20GB for billion-vector collections - making it feasible to maintain high-quality indexes at massive scale.
+
+### Performance Characteristics
+
+SPFresh trades a modest increase in memory usage for dramatically improved update performance:
+
+- **Memory overhead**: ~10-20GB for billion-scale datasets (vs. hundreds of GB for full HNSW)
+- **Update latency**: Consistent low latency regardless of dataset size (vs. increasing latency for HNSW)
+- **Search performance**: Comparable to HNSW for most queries, with slight overhead for partition loading
+- **Disk I/O**: Optimized for modern SSD storage with parallel partition access
+
+The architecture is particularly effective when sufficient disk IOPS are available and when update frequency exceeds 1% of the dataset daily.
+
 ## Vector cache considerations
 
 For optimal search and import performance, previously imported vectors need to be in memory. A disk lookup for a vector is orders of magnitudes slower than memory lookup, so the disk cache should be used sparingly. However, Weaviate can limit the number of vectors in memory. By default, this limit is set to one trillion (`1e12`) objects when a new collection is created.
@@ -228,7 +284,20 @@ Yes, you can read more about it in [vector quantization (compression)](../vector
 
 ### Which vector index is right for me?
 
-A simple heuristic is that for use cases such as SaaS products where each end user (i.e. tenant) has their own, isolated, dataset, the `flat` index is a good choice. For use cases with large collections, the `hnsw` index may be a better choice.
+Choosing the right vector index depends on your dataset size, update frequency, and performance requirements:
+
+**Flat index**: Ideal for SaaS products where each end user (tenant) has their own small, isolated dataset. Best for collections under 10,000 vectors with infrequent updates.
+
+**HNSW index**: Excellent for large, relatively static collections where read performance is critical. Best for datasets with infrequent updates and when you can afford periodic maintenance windows for rebuilds.
+
+**Dynamic index**: Perfect for collections that start small but may grow significantly over time. Automatically transitions from flat to HNSW at configurable thresholds.
+
+**SPFresh index**: Designed for billion-scale datasets with continuous updates. Choose SPFresh when:
+- Your dataset receives frequent updates (>1% daily update rate)
+- You need stable performance during continuous data ingestion
+- Global index rebuilds are too expensive or disruptive
+- Fresh data availability is critical for your application
+- You have sufficient disk I/O capacity for optimal partition loading
 
 Note that the vector index type parameter only specifies how the vectors of data objects are *indexed*. The index is used for data retrieval and similarity search.
 

@@ -256,7 +256,7 @@ Multi-vector embeddings use up more memory than single vector embeddings. You ca
 
 ## Set vector index type
 
-The vector index type can be set for each collection at creation time, between `hnsw`, `flat` and `dynamic` index types.
+The vector index type can be set for each collection at creation time, between `hnsw`, `flat`, `dynamic`, and `spfresh` index types.
 
 <Tabs groupId="languages">
   <TabItem value="py" label="Python">
@@ -305,12 +305,113 @@ The vector index type can be set for each collection at creation time, between `
 
 </details>
 
+## Configure SPFresh index
+
+:::info Added in `v1.32`
+:::
+
+SPFresh is a hybrid disk-based vector index designed for billion-scale datasets with frequent updates. Unlike traditional approaches that require periodic global rebuilds, SPFresh maintains index quality through incremental local rebalancing, making it ideal for collections with high update rates (>1% daily updates).
+
+<Tabs groupId="languages">
+  <TabItem value="py" label="Python">
+    <FilteredTextBlock
+      text={PyCode}
+      startMarker="# START ConfigureSPFresh"
+      endMarker="# END ConfigureSPFresh"
+      language="py"
+    />
+  </TabItem>
+
+  <TabItem value="js" label="JS/TS">
+    <FilteredTextBlock
+      text={TSCode}
+      startMarker="// START ConfigureSPFresh"
+      endMarker="// END ConfigureSPFresh"
+      language="ts"
+    />
+  </TabItem>
+
+  <TabItem value="java" label="Java">
+    <FilteredTextBlock
+      text={JavaCode}
+      startMarker="// START ConfigureSPFresh"
+      endMarker="// END ConfigureSPFresh"
+      language="java"
+    />
+  </TabItem>
+
+  <TabItem value="go" label="Go">
+    <FilteredTextBlock
+      text={GoCode}
+      startMarker="// START ConfigureSPFresh"
+      endMarker="// END ConfigureSPFresh"
+      language="gonew"
+    />
+  </TabItem>
+</Tabs>
+
+### Migration from HNSW to SPFresh
+
+For collections requiring frequent updates without performance degradation, SPFresh provides a better alternative to HNSW:
+
+<Tabs groupId="languages">
+  <TabItem value="py" label="Python">
+    <FilteredTextBlock
+      text={PyCode}
+      startMarker="# START MigrateToSPFresh"
+      endMarker="# END MigrateToSPFresh"
+      language="py"
+    />
+  </TabItem>
+
+  <TabItem value="js" label="JS/TS">
+    <FilteredTextBlock
+      text={TSCode}
+      startMarker="// START MigrateToSPFresh"
+      endMarker="// END MigrateToSPFresh"
+      language="ts"
+    />
+  </TabItem>
+
+  <TabItem value="java" label="Java">
+    <FilteredTextBlock
+      text={JavaCode}
+      startMarker="// START MigrateToSPFresh"
+      endMarker="// END MigrateToSPFresh"
+      language="java"
+    />
+  </TabItem>
+
+  <TabItem value="go" label="Go">
+    <FilteredTextBlock
+      text={GoCode}
+      startMarker="// START MigrateToSPFresh"
+      endMarker="// END MigrateToSPFresh"
+      language="gonew"
+    />
+  </TabItem>
+</Tabs>
+
+<details>
+  <summary>When to use SPFresh</summary>
+
+- Collections with frequent updates (>1% daily update rate)
+- Billion-scale datasets where global rebuilds are too expensive
+- Use cases requiring stable tail latency during updates
+- Applications needing fresh data without performance degradation
+
+</details>
+
 ## Set vector index parameters
 
 Set vector index parameters such as [compression](../configuration/compression/index.md) and [filter strategy](../concepts/filtering.md#filter-strategy) through collection configuration. Some parameters can be [updated later](collection-operations.mdx#update-a-collection-definition) after collection creation.
 
 :::info Filter strategy parameter
 Was added in `v1.27`
+:::
+
+:::note SPFresh parameters
+SPFresh has its own specific configuration parameters for partition management and rebalancing. See the [configuration reference](/weaviate/config-refs/indexing/vector-index.mdx#spfresh-parameters) for complete details.
 :::
 
 <Tabs groupId="languages">

@@ -159,6 +159,7 @@ client.collections.create(
         vector_index_config=Configure.VectorIndex.hnsw(),  # Use the HNSW index
         # vector_index_config=Configure.VectorIndex.flat(),  # Use the FLAT index
         # vector_index_config=Configure.VectorIndex.dynamic(),  # Use the DYNAMIC index
+        # vector_index_config=Configure.VectorIndex.spfresh(),  # Use the SPFresh index
         # highlight-end
     ),
     properties=[
@@ -167,6 +168,65 @@ client.collections.create(
     ],
 )
 # END SetVectorIndexType
+
+# Clean slate
+client.collections.delete("Article")
+
+# START ConfigureSPFresh
+from weaviate.classes.config import Configure, VectorDistances
+
+client.collections.create(
+    "Articles",
+    vector_config=Configure.Vectors.text2vec_openai(
+        name="default",
+        # highlight-start
+        vector_index_config=Configure.VectorIndex.spfresh(
+            distance_metric=VectorDistances.COSINE,
+            max_posting_size=10000,
+            min_posting_size=1000,
+            reassign_range=64,
+            ef=-1,  # Dynamic ef for centroid search
+            ef_construction=128,
+            vector_cache_max_objects=1000000000000
+        )
+        # highlight-end
+    )
+)
+# END ConfigureSPFresh
+
+# Clean slate
+client.collections.delete("Articles")
+
+# START MigrateToSPFresh
+# Before: HNSW requiring periodic rebuilds for high-update workloads
+client.collections.create(
+    "Articles",
+    vector_config=Configure.Vectors.text2vec_openai(
+        vector_index_config=Configure.VectorIndex.hnsw()
+    )
+)
+
+client.collections.delete("Articles")
+
+# After: SPFresh for continuous updates without performance degradation
+client.collections.create(
+    "Articles",
+    vector_config=Configure.Vectors.text2vec_openai(
+        # highlight-start
+        vector_index_config=Configure.VectorIndex.spfresh(
+            max_posting_size=10000,
+            reassign_range=64
+        )
+        # highlight-end
+    )
+)
+# END MigrateToSPFresh
+
+# Clean slate
+client.collections.delete("Articles")
+
+# Recreate Article collection for next tests
+client.collections.create("Article")
 
 # Test
 from weaviate.collections.classes.config import _VectorIndexConfigHNSW
