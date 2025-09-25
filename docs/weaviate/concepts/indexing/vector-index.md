@@ -15,6 +15,7 @@ Weaviate supports these vector index types:
 * [flat index](#flat-index): a simple, lightweight index that is designed for small datasets.
 * [HNSW index](#hierarchical-navigable-small-world-hnsw-index): a more complex index that is slower to build, but it scales well to large datasets as queries have a logarithmic time complexity.
 * [dynamic index](#dynamic-index): allows you to automatically switch from a flat index to an HNSW index as object count scales
+* [SPFresh index](#spfresh-index): a hybrid disk-based index optimized for billion-scale datasets with frequent updates
 
 :::caution Experimental feature
 Available starting in `v1.25`. This is an experimental feature. Use with caution.
@@ -209,6 +210,68 @@ By configuring a dynamic index, you can automatically switch from flat to HNSW i
 Currently, this is only a one-way upgrade from a flat to an HNSW index, it does not support changing back to a flat index even if the object count goes below the threshold due to deletion.
 
 This is particularly useful in a multi-tenant setup where building an HNSW index per tenant would introduce extra overhead. With a dynamic index, as individual tenants grow their index will switch from flat to HNSW, while smaller tenants' indexes remain flat.
+
+## SPFresh index
+
+:::info Added in `v1.35`
+:::
+
+SPFresh is a hybrid disk-based vector index specifically designed for billion-scale datasets with frequent updates. Unlike traditional approaches that require periodic global rebuilds, SPFresh uses incremental rebalancing to maintain index quality while supporting continuous updates.
+
+### How SPFresh works
+
+SPFresh combines the benefits of memory-based and disk-based indexing:
+
+- **In-memory HNSW index**: Stores partition centroids for fast nearest-partition lookup
+- **Disk-based partitions**: Store the actual vectors, organized by proximity to centroids
+- **Incremental rebalancing**: Maintains partition quality through local splits and reassignments
+
+### Search process
+
+When you query a SPFresh index:
+
+1. The query vector searches the in-memory HNSW index to find nearest partition centroids
+2. Identified partitions are loaded from disk in parallel
+3. Full distance calculations are performed on candidate vectors
+4. Top-K results are returned
+
+### Update process
+
+SPFresh handles updates efficiently:
+
+1. **Insert**: New vectors are assigned to the nearest partition via HNSW centroid search and appended to disk
+2. **Partition splits**: When a partition exceeds `maxPostingSize`, it automatically splits into two partitions
+3. **Centroid updates**: New centroids are computed and updated in the HNSW index
+4. **Vector reassignment**: Nearby partitions are checked for vectors that need reassignment to maintain quality
+5. **Minimal overhead**: Only boundary vectors are reassigned, minimizing resource usage
+
+### Key advantages
+
+- **Fast partition selection**: HNSW index on centroids provides O(log n) partition lookup
+- **In-place updates**: Append vectors directly without requiring global index rebuilds
+- **Incremental rebalancing**: Maintains index quality through local operations
+- **Low resource overhead**: Requires ~1% of DRAM and <10% of CPU cores compared to global rebuild approaches
+- **Stable performance**: Consistent search latency and accuracy during continuous updates
+
+### Memory requirements
+
+For billion-scale datasets, SPFresh typically requires:
+
+- HNSW centroid index: ~40 bytes per partition (~4GB for 1B vectors with 100K partitions)
+- Block mapping metadata: ~40 bytes per partition (~4GB)
+- Version tracking: 1 byte per vector for reassignment tracking (~1GB)
+- **Total**: ~10-20GB for billion-scale datasets
+
+### When to use SPFresh
+
+SPFresh is ideal for:
+
+- Collections with frequent updates (>1% daily update rate)
+- Billion-scale datasets where global rebuilds are too expensive
+- Use cases requiring stable tail latency during updates
+- Applications needing fresh data without performance degradation
+
+For smaller datasets or infrequent updates, consider the [HNSW index](#hierarchical-navigable-small-world-hnsw-index) instead.
 
 ## Vector cache considerations
 
