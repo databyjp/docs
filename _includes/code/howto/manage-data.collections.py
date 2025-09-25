@@ -213,6 +213,68 @@ config = collection.config.get()
 assert config.vector_config["default"].vector_index_config.filter_strategy == "sweeping"
 assert isinstance(config.vector_config["default"].vector_index_config, _VectorIndexConfigHNSW)
 
+# ===========================
+# ===== SET SPFRESH INDEX =====
+# ===========================
+
+# Clean slate
+client.collections.delete("Article")
+
+# START SetSPFreshIndex
+from weaviate.classes.config import (
+    Configure,
+    Property,
+    DataType,
+    VectorDistances,
+)
+
+# Configure SPFresh index
+client.collections.create(
+    "Articles",
+    vector_config=Configure.Vectors.text2vec_openai(
+        name="default",
+        vector_index_config=Configure.VectorIndex.spfresh(
+            distance_metric=VectorDistances.COSINE,
+            max_posting_size=10000,
+            min_posting_size=1000,
+            reassign_range=64,
+            ef=-1,  # Dynamic ef for centroid search
+            ef_construction=128,
+            vector_cache_max_objects=1000000000000
+        )
+    )
+)
+# END SetSPFreshIndex
+
+# ===========================
+# ===== SPFRESH MIGRATION =====
+# ===========================
+
+# Clean slate
+client.collections.delete("Articles")
+
+# START SPFreshMigration
+# Migration example: From HNSW to SPFresh for frequent updates
+# Before: HNSW requiring periodic rebuilds
+# client.collections.create(
+#     "Articles",
+#     vector_config=Configure.Vectors.text2vec_openai(
+#         vector_index_config=Configure.VectorIndex.hnsw()
+#     )
+# )
+
+# After: SPFresh for continuous updates
+client.collections.create(
+    "Articles",
+    vector_config=Configure.Vectors.text2vec_openai(
+        vector_index_config=Configure.VectorIndex.spfresh(
+            max_posting_size=10000,
+            reassign_range=64
+        )
+    )
+)
+# END SPFreshMigration
+
 
 # ===================================================================
 # ===== CREATE A COLLECTION WITH CUSTOM INVERTED INDEX SETTINGS =====

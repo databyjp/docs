@@ -4,11 +4,12 @@ description: Reference for vector index types and parameters in Weaviate.
 ---
 
 **[Vector indexes](../../concepts/indexing/vector-index.md)** facilitate efficient, vector-first data storage and retrieval.
-There are three supported vector index types:
+There are four supported vector index types:
 
 - **[HNSW index](#hnsw-index)**
 - **[Flat index](#flat-index)**
 - **[Dynamic index](#dynamic-index)**
+- **[SPFresh index](#spfresh-index)**
 
 ## Index configuration parameters
 
@@ -20,7 +21,7 @@ Use these parameters to configure the index type and their properties. They can 
 
 | Parameter           | Type   | Default | Details                                                              |
 | :------------------ | :----- | :------ | :------------------------------------------------------------------- |
-| `vectorIndexType`   | string | `hnsw`  | Optional. The index type - can be `hnsw`, `flat` or `dynamic`.       |
+| `vectorIndexType`   | string | `hnsw`  | Optional. The index type - can be `hnsw`, `flat`, `dynamic`, or `spfresh`.       |
 | `vectorIndexConfig` | object | -       | Optional. Set parameters that are specific to the vector index type. |
 
 <details>
@@ -165,6 +166,25 @@ The goal of `dynamic` indexing is to shorten latencies during query time at the 
 | `hnsw`      | object  | default HNSW | [HNSW index configuration](#hnsw-index-parameters) to be used.                        |
 | `flat`      | object  | default Flat | [Flat index configuration](#flat-index) to be used.                                   |
 | `threshold` | integer | 10000        | Threshold object count at which `flat` to `hnsw` conversion happens                   |
+
+## SPFresh index
+
+:::info Added in `v1.35`
+:::
+
+SPFresh is a hybrid disk-based vector index optimized for billion-scale datasets with frequent updates. It maintains partition centroids in an in-memory HNSW index while storing vector partitions on disk.
+
+### SPFresh index parameters
+
+| Parameter | Type | Default | Changeable | Details |
+| :-- | :-- | :-- | :-- | :-- |
+| `distance` | string | `cosine` | No | Distance metric. The metric that measures the distance between two arbitrary vectors. For available distance metrics, see [supported distance metrics](/weaviate/config-refs/distances.md). |
+| `maxPostingSize` | integer | 10000 | Yes | Maximum vectors per partition before split triggers. When a partition exceeds this size, it automatically splits into two partitions with recomputed centroids. |
+| `minPostingSize` | integer | 1000 | Yes | Minimum partition size before merge is considered. Helps prevent partitions from becoming too small after deletions. |
+| `reassignRange` | integer | 64 | Yes | Number of nearby partitions to check for reassignment during rebalancing. Higher values improve quality but increase overhead. |
+| `vectorCacheMaxObjects` | integer | `1e12` | Yes | Maximum number of objects in the memory cache. By default, this limit is set to one trillion (`1e12`) objects when a new collection is created. For sizing recommendations, see [Vector cache considerations](../../concepts/indexing/vector-index.md#vector-cache-considerations). |
+| `ef` | integer | -1 | Yes | Search list size for HNSW centroid index. Uses dynamic ef by default (-1). Higher values improve accuracy but slow down centroid search. |
+| `efConstruction` | integer | 128 | No | Build parameter for HNSW centroid index. Higher values create better quality centroid index but increase build time. |
 
 ## Quantization parameters
 
