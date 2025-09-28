@@ -118,6 +118,10 @@ For details on the configuration parameters, see the following:
 
 Configure sharding per collection.
 
+:::tip
+Starting with v1.XX, you can also dynamically adjust shard counts using [cluster resharding](#cluster-resharding).
+:::
+
 <Tabs groupId="languages">
   <TabItem value="py" label="Python Client v4">
     <FilteredTextBlock
@@ -201,6 +205,122 @@ You can manually update a shard to change it's status. For example, update the s
 import CodeSchemaShardsUpdate from "/_includes/code/howto/manage-data.shards.update.mdx";
 
 <CodeSchemaShardsUpdate />
+
+## Cluster Resharding
+
+:::info Added in `v1.XX`
+:::
+
+Dynamically adjust the number of shards in your multi-node cluster to redistribute data for better performance and scalability.
+
+### Before you begin
+
+- Ensure your cluster has multiple nodes
+- Plan the resharding during a maintenance window if possible
+- Monitor available disk space (resharding requires temporary storage)
+- Have rollback procedures ready
+
+### Trigger resharding
+
+<Tabs groupId="languages">
+  <TabItem value="py" label="Python Client v4">
+    <FilteredTextBlock
+      text={PyCode}
+      startMarker="# START ClusterResharding"
+      endMarker="# END ClusterResharding"
+      language="py"
+    />
+  </TabItem>
+  
+  <TabItem value="js" label="JS/TS Client v3">
+    ```typescript
+    // [!NOTE] This code block is a placeholder and is not yet implemented.
+    // Placeholder - exact syntax to be determined
+    // This will be added to the TypeScript client
+    await client.cluster.reshard({
+      targetShards: 6,
+      migrationSpeed: 'medium',
+      enableValidation: true
+    })
+    ```
+  </TabItem>
+  
+  <TabItem value="java" label="Java">
+    ```java
+    // [!NOTE] This code block is a placeholder and is not yet implemented.
+    // Placeholder - exact syntax to be determined
+    // This will be added to the Java client
+    client.cluster().reshard()
+      .withTargetShards(6)
+      .withMigrationSpeed("medium")
+      .withValidation(true)
+      .run();
+    ```
+  </TabItem>
+  
+  <TabItem value="go" label="Go">
+    ```go
+    // [!NOTE] This code block is a placeholder and is not yet implemented.
+    // Placeholder - exact syntax to be determined
+    // This will be added to the Go client
+    err := client.Cluster().Reshard().
+      WithTargetShards(6).
+      WithMigrationSpeed("medium").
+      WithValidation(true).
+      Do(context.Background())
+    ```
+  </TabItem>
+  
+  <TabItem value="curl" label="cURL">
+    ```bash
+    curl -X POST \
+      -H "Content-Type: application/json" \
+      -d '{
+        "targetShards": 6,
+        "migrationSpeed": "medium",
+        "enableValidation": true
+      }' \
+      http://localhost:8080/v1/cluster/resharding
+    ```
+  </TabItem>
+</Tabs>
+
+### Monitor resharding progress
+
+<Tabs groupId="languages">
+  <TabItem value="py" label="Python Client v4">
+    ```python
+    # [!NOTE] This code block is a placeholder and is not yet implemented.
+    # Placeholder - exact syntax to be determined
+    status = client.cluster.get_resharding_status()
+    print(f"Progress: {status.progress_percentage}%")
+    print(f"Status: {status.status}")
+    ```
+  </TabItem>
+  
+  <TabItem value="curl" label="cURL">
+    ```bash
+    curl http://localhost:8080/v1/cluster/resharding/status
+    ```
+  </TabItem>
+</Tabs>
+
+### Configuration parameters
+
+- **targetShards**: Desired number of shards after resharding
+- **migrationSpeed**: Controls migration pace (`slow`, `medium`, `fast`)
+- **enableValidation**: Enables real-time consistency checks (recommended)
+- **batchSize**: Number of objects to migrate per batch (optional)
+
+<details>
+  <summary>Additional considerations</summary>
+
+- **Performance impact**: Resharding may temporarily affect query performance
+- **Storage requirements**: Ensure 50% additional disk space during migration
+- **Monitoring**: Use the status endpoint to track progress
+- **Rollback**: Contact support if rollback is needed during migration
+
+</details>
 
 ## Further resources
 

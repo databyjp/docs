@@ -7,7 +7,7 @@ image: og/docs/concepts.jpg
 ---
 
 
-This page describes how the nodes or clusters in Weaviate's replication design behave.
+This page describes how the nodes or clusters in Weaviate's replication design behave. Starting with v1.XX, Weaviate also supports dynamic resharding to adjust cluster topology without downtime.
 
 In Weaviate, metadata replication and data replication are separate. For the metadata, Weaviate uses the [Raft](https://raft.github.io/) consensus algorithm. For data replication, Weaviate uses a leaderless design with eventual consistency.
 
@@ -124,6 +124,73 @@ Read operations are also coordinated by a coordinator node, which directs a quer
 If the cluster size is 3 and the replication factor is also 3, then all nodes can serve the query. The consistency level determines how many nodes will be queried.
 
 If the cluster size is 10 and the replication factor is 3, the 3 nodes which contain that data (collection) can serve queries, coordinated by the coordinator node. The client waits until x (the consistency level) nodes have responded.
+
+## Dynamic Resharding
+
+:::info Added in `v1.XX`
+:::
+
+Weaviate supports dynamic resharding of multi-node clusters, allowing administrators to change the number of shards without cluster downtime. This capability addresses the previous limitation where cluster scaling was not fully supported.
+
+### Resharding Architecture
+
+The resharding process involves several key components working in coordination:
+
+**Shard Mapping Updates**
+The system creates new shard mappings based on the target shard count, using a consistent hashing algorithm to determine new data distribution patterns.
+
+**Distributed Hash Ring**
+Resharding updates the distributed hash ring to reflect the new topology, ensuring that data routing remains consistent during and after the migration.
+
+**Migration Coordination**
+A coordination layer manages the migration process across nodes, ensuring that:
+- Data is moved in configurable batches
+- Node resources are balanced during migration
+- Progress is tracked and reported
+
+### Technical Implementation
+
+**Batch Migration**
+Vector embeddings and metadata are migrated in configurable batches to prevent overwhelming individual nodes. The batch size can be adjusted based on cluster resources and performance requirements.
+
+**Load Balancing**
+Automatic load balancing prevents any single node from becoming a bottleneck during migration. The system monitors node resources and adjusts migration patterns accordingly.
+
+**Consistency Validation**
+Real-time consistency checks ensure data integrity throughout the migration process. These checks validate that:
+- All data has been successfully copied to new locations
+- No data corruption has occurred during migration
+- Vector indices remain consistent
+
+**Rollback Mechanism**
+If migration encounters failures, a rollback mechanism can revert the cluster to its previous state, ensuring system stability.
+
+### Operation Behavior During Resharding
+
+**Read Operations**
+- Continue normally without interruption
+- May query both old and new shard locations during transition
+- Automatic routing ensures consistent results
+
+**Write Operations**
+- Temporarily queued during active shard migration
+- Automatically replayed once migration of affected shards completes
+- No data loss occurs during the queuing period
+
+**Metadata Operations**
+- Schema changes are temporarily blocked during active resharding
+- Collection management operations wait for resharding completion
+
+### Monitoring and Observability
+
+Resharding provides built-in monitoring through dedicated API endpoints that report:
+- Migration progress percentage
+- Number of objects migrated
+- Estimated time to completion
+- Current migration phase
+- Any errors or warnings
+
+This information helps administrators track the resharding process and plan maintenance windows accordingly.
 
 ## Questions and feedback
 

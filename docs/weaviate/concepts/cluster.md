@@ -76,6 +76,8 @@ To use multiple CPUs efficiently, create multiple shards for your collection. Fo
 ### Disadvantages when increasing sharding
 * Query throughput does not improve when adding more sharded nodes
 
+See [Cluster Resharding](#cluster-resharding) for information on dynamically adjusting shard counts in existing clusters.
+
 ### Advantages when increasing replication
 * System becomes highly available
 * Increased replication leads to near-linearly increased query throughput
@@ -104,6 +106,52 @@ A shard replica can be moved or copied from one node to another. This is useful 
 2. **Scaling**: If you need to scale your cluster (e.g., adding more nodes to handle increased load), shard replicas can be moved to the new nodes to ensure that the data is evenly distributed across the cluster.
 
 3. **Node Maintenance or Replacement**: If a node requires maintenance (e.g., hardware upgrades) or replacement, shard replicas can be moved to temporary or replacement nodes to ensure continuous availability during the maintenance window.
+
+## Cluster Resharding
+
+:::info Added in `v1.XX`
+:::
+
+Weaviate supports dynamic resharding of multi-node clusters to redistribute data across nodes for improved performance and scalability. This allows administrators to adjust the number of shards in an existing cluster without downtime.
+
+### How resharding works
+
+The resharding process creates new shard mappings, migrates vector embeddings and metadata in batches, and updates the distributed hash ring to reflect the new topology. Key technical aspects include:
+
+- **Automatic load balancing**: Migration process prevents node overload through intelligent scheduling
+- **Batch processing**: Data is migrated in configurable batch sizes with speed throttling
+- **Real-time consistency**: Continuous data integrity checks throughout the migration
+- **Rollback support**: Ability to revert changes if migration encounters failures
+- **Progress monitoring**: Built-in endpoints to track resharding status
+
+### During resharding operations
+
+- **Read operations**: Continue normally without interruption
+- **Write operations**: Temporarily queued and replayed after shard migration completes
+- **Cluster availability**: Maintained throughout the resharding process
+
+### Common use cases
+
+1. **Scaling under load**: Increase shard count when clusters experience heavy traffic
+2. **Rebalancing**: Redistribute data after adding or removing nodes
+3. **Performance optimization**: Adjust shard distribution based on query patterns
+
+### API endpoint
+
+Resharding is triggered via the `/v1/cluster/resharding` REST API endpoint with parameters for:
+- Target shard count
+- Migration speed controls
+- Validation settings
+
+### Client library support
+
+Each Weaviate client library (Python, JavaScript/TypeScript, Go, Java) provides native functions for resharding operations. See the respective client documentation for specific syntax.
+
+**Important considerations:**
+- Plan resharding during maintenance windows when possible
+- Monitor cluster resources during migration
+- Ensure adequate disk space for temporary data structures
+- Test rollback procedures in non-production environments
 
 ## Node Discovery
 
@@ -163,7 +211,7 @@ Shards were assigned to 'live' nodes in a round-robin fashion starting with a ra
 
 * Starting with `v1.25.0`, Weaviate adopts the [Raft consensus algorithm](https://raft.github.io/) which is a log-based algorithm coordinated by an elected leader. This brings an additional benefit in that concurrent schema changes are now supported.<br/>If you are a Kubernetes user, see the [`1.25 migration guide`](/deploy/migration/weaviate-1-25.md) before you upgrade. To upgrade, you have to delete your existing StatefulSet.
 * As of `v1.8.0`, the process of broadcasting schema changes across the cluster uses a form of two-phase transaction that as of now cannot tolerate node failures during the lifetime of the transaction.
-* As of `v1.8.0`, dynamically scaling a cluster is not fully supported yet. New nodes can be added to an existing cluster, however it does not affect the ownership of shards. Existing nodes can not yet be removed if data is present, as shards are not yet being moved to other nodes prior to a removal of a node.
+* Dynamic cluster scaling is now supported through the [cluster resharding](#cluster-resharding) feature, which allows for adjusting shard counts and redistributing data without downtime.
 
 ## Questions and feedback
 

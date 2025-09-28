@@ -654,6 +654,24 @@ collection = client.collections.use("Article")
 config = collection.config.get()
 assert config.vector_config["default"].vector_index_config.distance_metric.value == "cosine"
 
+# START ClusterResharding
+# [!NOTE] This code block is a placeholder and is not yet implemented.
+# Placeholder code - syntax to be finalized when client library is updated
+# Trigger resharding operation
+resharding_result = client.cluster.reshard(
+    target_shards=6,
+    migration_speed="medium",
+    enable_validation=True
+)
+print(f"Resharding initiated: {resharding_result.job_id}")
+
+# Monitor resharding progress
+status = client.cluster.get_resharding_status()
+print(f"Progress: {status.progress_percentage}%")
+print(f"Status: {status.status}")
+print(f"ETA: {status.estimated_completion}")
+# END ClusterResharding
+
 client.close()
 
 # =======================
