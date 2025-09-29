@@ -202,6 +202,55 @@ import CodeSchemaShardsUpdate from "/_includes/code/howto/manage-data.shards.upd
 
 <CodeSchemaShardsUpdate />
 
+## Resharding Collections
+
+:::info Added in `v1.33`
+:::
+
+You can dynamically adjust the number of shards in an existing collection through resharding. This is useful for scaling collections under load or optimizing performance based on query patterns.
+
+:::warning Resharding vs. Configuration
+Unlike the initial shard count which is set during collection creation, resharding changes the shard structure of an existing collection. This is different from updating collection configuration parameters.
+:::
+
+### When to Use Resharding
+
+- **Performance scaling**: Increase shards when experiencing high query loads
+- **Data growth**: Accommodate larger datasets by distributing across more shards
+- **Query optimization**: Adjust shard distribution based on access patterns
+- **Cluster rebalancing**: Redistribute data after adding or removing nodes
+
+### Resharding Process
+
+Resharding operates without downtime:
+
+1. **Preparation**: New shard mappings are calculated based on target shard count
+2. **Migration**: Data is moved in batches with configurable speed controls
+3. **Validation**: Real-time consistency checks ensure data integrity
+4. **Completion**: Write operations are replayed and normal operations resume
+
+### Configuration Options
+
+Resharding can be configured with:
+
+- **Target shard count**: The desired number of shards after resharding
+- **Migration speed**: Batch sizes and throttling to control resource usage
+- **Validation settings**: Consistency check frequency and thresholds
+
+:::note Client Library Support
+Resharding operations are supported through native functions in all Weaviate client libraries (Python, JavaScript/TypeScript, Go, Java). The exact syntax may vary by client version.
+:::
+
+For detailed resharding procedures and API usage, see the [Resharding Configuration Guide](/deploy/configuration/resharding.mdx).
+
+### Monitoring Resharding Operations
+
+Track resharding progress through:
+
+- **Status endpoints**: Check current operation state and progress
+- **Monitoring metrics**: View data migration rates and consistency checks
+- **Error reporting**: Identify and address any issues during the process
+
 ## Further resources
 
 - <SkipLink href="/weaviate/api/rest#tag/schema/post/schema">API References: REST: Schema</SkipLink>

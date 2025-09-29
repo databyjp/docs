@@ -379,6 +379,43 @@ When a shard replica is copied, the increased replication factor may become an e
 
 :::
 
+## Resharding and Consistency
+
+:::info Added in `v1.33`
+:::
+
+Dynamic resharding in Weaviate maintains data consistency during the redistribution process through several mechanisms:
+
+### Consistency During Resharding
+
+When a resharding operation is in progress:
+
+- **Read operations** continue with normal consistency levels (`ONE`, `QUORUM`, `ALL`)
+- **Write operations** are temporarily queued and replayed after shard migration completes
+- **Real-time validation** ensures data integrity during the migration process
+
+### Impact on Replication
+
+Resharding works alongside Weaviate's replication system:
+
+- Each new shard maintains the collection's configured replication factor
+- Existing replicas are redistributed according to the new shard mapping
+- Consistency levels remain configurable throughout the resharding process
+
+### Monitoring and Rollback
+
+The resharding process includes safety mechanisms:
+
+- **Progress tracking**: Monitor migration status through dedicated endpoints
+- **Automatic rollback**: Failed migrations can be automatically reverted
+- **Consistency validation**: Continuous checks ensure data integrity
+
+:::tip Consistency during resharding
+For maximum consistency during resharding operations, consider using `QUORUM` or `ALL` read consistency levels to ensure you're reading from up-to-date replicas during the migration process.
+:::
+
+For more information about resharding, see the [Cluster Architecture documentation](../cluster.md#dynamic-resharding).
+
 ## Related pages
 - [API References | GraphQL | Get | Consistency Levels](../../api/graphql/get.md#consistency-levels)
 - <SkipLink href="/weaviate/api/rest#tag/objects">API References | REST | Objects</SkipLink>

@@ -6,6 +6,10 @@ image: og/docs/configuration.jpg
 :::info Added in `v1.32`
 :::
 
+:::note Replica Movement vs. Resharding
+Replica movement redistributes existing shard replicas across nodes without changing the shard structure. This is different from [resharding](/docs/deploy/configuration/resharding.mdx), which creates new shards with different data distributions. Use replica movement for load balancing and node management, and use resharding to change the fundamental shard count of a collection.
+:::
+
 Beyond setting the initial replication factor, you can actively manage the placement of shard replicas within your Weaviate cluster. This is useful for rebalancing data after scaling, decommissioning nodes, or optimizing data locality. Replica movement is managed through a set of dedicated [RESTful API endpoints](/docs/weaviate/api/rest.md) or through the client library API described below.
 
 When a replica movement is initiated, it changes the replication factor of that shard *only*, not the entire collection. A collection has a particular replication factor, but a shard (a subset of a collection), can have its own replication factor which can be different. If a replica COPY operation is made, this can be incremented.
@@ -321,6 +325,21 @@ language="py"
 
 </TabItem>
 </Tabs>
+
+## Resharding vs. Replica Movement
+
+Choose the appropriate operation based on your needs:
+
+| Scenario | Use Replica Movement | Use Resharding |
+|----------|---------------------|------|
+| Load balancing across existing nodes | ✅ | ❌ |
+| Node decommissioning | ✅ | ❌ |
+| Optimizing data locality | ✅ | ❌ |
+| Increasing/decreasing shard count | ❌ | ✅ |
+| Scaling collection capacity | ❌ | ✅ |
+| Optimizing for query patterns | ❌ | ✅ |
+
+For resharding operations, see the [Resharding Configuration Guide](/docs/deploy/configuration/resharding.mdx).
 
 ## Further resources
 

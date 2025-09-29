@@ -165,6 +165,52 @@ Shards were assigned to 'live' nodes in a round-robin fashion starting with a ra
 * As of `v1.8.0`, the process of broadcasting schema changes across the cluster uses a form of two-phase transaction that as of now cannot tolerate node failures during the lifetime of the transaction.
 * As of `v1.8.0`, dynamically scaling a cluster is not fully supported yet. New nodes can be added to an existing cluster, however it does not affect the ownership of shards. Existing nodes can not yet be removed if data is present, as shards are not yet being moved to other nodes prior to a removal of a node.
 
+## Dynamic Resharding
+
+:::info Added in `v1.33`
+:::
+
+Weaviate supports dynamic resharding in multi-node clusters, allowing administrators to redistribute data across nodes without downtime. This feature enables you to adjust the number of shards in an existing collection to optimize performance and scalability.
+
+### Key Features
+
+- **Zero-downtime operation**: Read operations continue normally during resharding
+- **Automatic load balancing**: Migration process prevents node overload
+- **Configurable migration speed**: Batch sizes and speed throttling are adjustable
+- **Data integrity validation**: Real-time consistency checks ensure data safety
+- **Rollback support**: Failed migrations can be rolled back
+- **Progress monitoring**: Track resharding progress through monitoring endpoints
+
+### How Resharding Works
+
+The resharding process involves:
+
+1. Creating new shard mappings based on the target shard count
+2. Migrating vector embeddings and metadata in configurable batches
+3. Updating the distributed hash ring to reflect the new topology
+4. Queuing and replaying write operations after migration completes
+
+### Common Use Cases
+
+- **Scaling under load**: Increase shards when clusters experience heavy traffic
+- **Rebalancing after node changes**: Redistribute data after adding or removing nodes
+- **Performance optimization**: Adjust shard distribution based on query patterns
+
+### API Integration
+
+Resharding is triggered via the `/v1/cluster/resharding` API endpoint with parameters for:
+- Target shard count
+- Migration speed settings
+- Validation configurations
+
+Each Weaviate client library (Python, JavaScript/TypeScript, Go, Java) provides native functions for resharding operations.
+
+:::note Relationship to Replica Movement
+Resharding is different from [replica movement](#shard-replica-movement). While replica movement redistributes existing shard replicas across nodes, resharding changes the fundamental shard structure of a collection by creating new shards with different data distributions.
+:::
+
+For detailed configuration and usage examples, see the [Resharding Configuration Guide](/docs/deploy/configuration/resharding.mdx).
+
 ## Questions and feedback
 
 import DocsFeedback from '/_includes/docs-feedback.mdx';

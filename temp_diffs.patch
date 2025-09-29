@@ -1,0 +1,214 @@
+--- a/docs/weaviate/concepts/cluster.md
++++ b/docs/weaviate/concepts/cluster.md
+@@ -163,10 +163,56 @@
+ 
+ * Starting with `v1.25.0`, Weaviate adopts the [Raft consensus algorithm](https://raft.github.io/) which is a log-based algorithm coordinated by an elected leader. This brings an additional benefit in that concurrent schema changes are now supported.<br/>If you are a Kubernetes user, see the [`1.25 migration guide`](/deploy/migration/weaviate-1-25.md) before you upgrade. To upgrade, you have to delete your existing StatefulSet.
+ * As of `v1.8.0`, the process of broadcasting schema changes across the cluster uses a form of two-phase transaction that as of now cannot tolerate node failures during the lifetime of the transaction.
+ * As of `v1.8.0`, dynamically scaling a cluster is not fully supported yet. New nodes can be added to an existing cluster, however it does not affect the ownership of shards. Existing nodes can not yet be removed if data is present, as shards are not yet being moved to other nodes prior to a removal of a node.
+ 
++## Dynamic Resharding
++
++:::info Added in `v1.33`
++:::
++
++Weaviate supports dynamic resharding in multi-node clusters, allowing administrators to redistribute data across nodes without downtime. This feature enables you to adjust the number of shards in an existing collection to optimize performance and scalability.
++
++### Key Features
++
++- **Zero-downtime operation**: Read operations continue normally during resharding
++- **Automatic load balancing**: Migration process prevents node overload
++- **Configurable migration speed**: Batch sizes and speed throttling are adjustable
++- **Data integrity validation**: Real-time consistency checks ensure data safety
++- **Rollback support**: Failed migrations can be rolled back
++- **Progress monitoring**: Track resharding progress through monitoring endpoints
++
++### How Resharding Works
++
++The resharding process involves:
++
++1. Creating new shard mappings based on the target shard count
++2. Migrating vector embeddings and metadata in configurable batches
++3. Updating the distributed hash ring to reflect the new topology
++4. Queuing and replaying write operations after migration completes
++
++### Common Use Cases
++
++- **Scaling under load**: Increase shards when clusters experience heavy traffic
++- **Rebalancing after node changes**: Redistribute data after adding or removing nodes
++- **Performance optimization**: Adjust shard distribution based on query patterns
++
++### API Integration
++
++Resharding is triggered via the `/v1/cluster/resharding` API endpoint with parameters for:
++- Target shard count
++- Migration speed settings
++- Validation configurations
++
++Each Weaviate client library (Python, JavaScript/TypeScript, Go, Java) provides native functions for resharding operations.
++
++:::note Relationship to Replica Movement
++Resharding is different from [replica movement](#shard-replica-movement). While replica movement redistributes existing shard replicas across nodes, resharding changes the fundamental shard structure of a collection by creating new shards with different data distributions.
++:::
++
++For detailed configuration and usage examples, see the [Resharding Configuration Guide](/docs/deploy/configuration/resharding.mdx).
++
+ ## Questions and feedback
+ 
+ import DocsFeedback from '/_includes/docs-feedback.mdx';
+ 
+ <DocsFeedback/>
+--- a/docs/weaviate/concepts/replication-architecture/consistency.md
++++ b/docs/weaviate/concepts/replication-architecture/consistency.md
+@@ -377,10 +377,47 @@
+ 
+ When a shard replica is copied, the increased replication factor may become an even number. This can make achieving a quorum more difficult, as it now requires `(n/2 + 1)` nodes instead of `(n/2 + 0.5)` nodes. For example, going from `RF=3` to `RF=4` increases the required nodes for quorum from 2 to 3 (67% to 75% of replicas).
+ 
+ :::
+ 
++## Resharding and Consistency
++
++:::info Added in `v1.33`
++:::
++
++Dynamic resharding in Weaviate maintains data consistency during the redistribution process through several mechanisms:
++
++### Consistency During Resharding
++
++When a resharding operation is in progress:
++
++- **Read operations** continue with normal consistency levels (`ONE`, `QUORUM`, `ALL`)
++- **Write operations** are temporarily queued and replayed after shard migration completes
++- **Real-time validation** ensures data integrity during the migration process
++
++### Impact on Replication
++
++Resharding works alongside Weaviate's replication system:
++
++- Each new shard maintains the collection's configured replication factor
++- Existing replicas are redistributed according to the new shard mapping
++- Consistency levels remain configurable throughout the resharding process
++
++### Monitoring and Rollback
++
++The resharding process includes safety mechanisms:
++
++- **Progress tracking**: Monitor migration status through dedicated endpoints
++- **Automatic rollback**: Failed migrations can be automatically reverted
++- **Consistency validation**: Continuous checks ensure data integrity
++
++:::tip Consistency during resharding
++For maximum consistency during resharding operations, consider using `QUORUM` or `ALL` read consistency levels to ensure you're reading from up-to-date replicas during the migration process.
++:::
++
++For more information about resharding, see the [Cluster Architecture documentation](../cluster.md#dynamic-resharding).
++
+ ## Related pages
+ - [API References | GraphQL | Get | Consistency Levels](../../api/graphql/get.md#consistency-levels)
+ - <SkipLink href="/weaviate/api/rest#tag/objects">API References | REST | Objects</SkipLink>
+ 
+ ## Questions and feedback
+--- a/docs/deploy/configuration/replica-movement.mdx
++++ b/docs/deploy/configuration/replica-movement.mdx
+@@ -2,10 +2,14 @@
+ title: Replica movement
+ image: og/docs/configuration.jpg
+ ---
+ 
+ :::info Added in `v1.32`
++:::
++
++:::note Replica Movement vs. Resharding
++Replica movement redistributes existing shard replicas across nodes without changing the shard structure. This is different from [resharding](/docs/deploy/configuration/resharding.mdx), which creates new shards with different data distributions. Use replica movement for load balancing and node management, and use resharding to change the fundamental shard count of a collection.
+ :::
+ 
+ Beyond setting the initial replication factor, you can actively manage the placement of shard replicas within your Weaviate cluster. This is useful for rebalancing data after scaling, decommissioning nodes, or optimizing data locality. Replica movement is managed through a set of dedicated [RESTful API endpoints](/docs/weaviate/api/rest.md) or through the client library API described below.
+ 
+ When a replica movement is initiated, it changes the replication factor of that shard *only*, not the entire collection. A collection has a particular replication factor, but a shard (a subset of a collection), can have its own replication factor which can be different. If a replica COPY operation is made, this can be incremented.
+@@ -320,10 +324,25 @@
+ ```
+ 
+ </TabItem>
+ </Tabs>
+ 
++## Resharding vs. Replica Movement
++
++Choose the appropriate operation based on your needs:
++
++| Scenario | Use Replica Movement | Use Resharding |
++|----------|---------------------|------|
++| Load balancing across existing nodes | ✅ | ❌ |
++| Node decommissioning | ✅ | ❌ |
++| Optimizing data locality | ✅ | ❌ |
++| Increasing/decreasing shard count | ❌ | ✅ |
++| Scaling collection capacity | ❌ | ✅ |
++| Optimizing for query patterns | ❌ | ✅ |
++
++For resharding operations, see the [Resharding Configuration Guide](/docs/deploy/configuration/resharding.mdx).
++
+ ## Further resources
+ 
+ - [RESTful API: Replication endpoints](/docs/weaviate/api/rest.md)
+ - [Concepts: Replication architecture](/docs/weaviate/concepts/replication-architecture/consistency.md#replica-movement)
+ 
+--- a/docs/weaviate/manage-collections/multi-node-setup.mdx
++++ b/docs/weaviate/manage-collections/multi-node-setup.mdx
+@@ -200,10 +200,59 @@
+ 
+ import CodeSchemaShardsUpdate from "/_includes/code/howto/manage-data.shards.update.mdx";
+ 
+ <CodeSchemaShardsUpdate />
+ 
++## Resharding Collections
++
++:::info Added in `v1.33`
++:::
++
++You can dynamically adjust the number of shards in an existing collection through resharding. This is useful for scaling collections under load or optimizing performance based on query patterns.
++
++:::warning Resharding vs. Configuration
++Unlike the initial shard count which is set during collection creation, resharding changes the shard structure of an existing collection. This is different from updating collection configuration parameters.
++:::
++
++### When to Use Resharding
++
++- **Performance scaling**: Increase shards when experiencing high query loads
++- **Data growth**: Accommodate larger datasets by distributing across more shards
++- **Query optimization**: Adjust shard distribution based on access patterns
++- **Cluster rebalancing**: Redistribute data after adding or removing nodes
++
++### Resharding Process
++
++Resharding operates without downtime:
++
++1. **Preparation**: New shard mappings are calculated based on target shard count
++2. **Migration**: Data is moved in batches with configurable speed controls
++3. **Validation**: Real-time consistency checks ensure data integrity
++4. **Completion**: Write operations are replayed and normal operations resume
++
++### Configuration Options
++
++Resharding can be configured with:
++
++- **Target shard count**: The desired number of shards after resharding
++- **Migration speed**: Batch sizes and throttling to control resource usage
++- **Validation settings**: Consistency check frequency and thresholds
++
++:::note Client Library Support
++Resharding operations are supported through native functions in all Weaviate client libraries (Python, JavaScript/TypeScript, Go, Java). The exact syntax may vary by client version.
++:::
++
++For detailed resharding procedures and API usage, see the [Resharding Configuration Guide](/deploy/configuration/resharding.mdx).
++
++### Monitoring Resharding Operations
++
++Track resharding progress through:
++
++- **Status endpoints**: Check current operation state and progress
++- **Monitoring metrics**: View data migration rates and consistency checks
++- **Error reporting**: Identify and address any issues during the process
++
+ ## Further resources
+ 
+ - <SkipLink href="/weaviate/api/rest#tag/schema/post/schema">API References: REST: Schema</SkipLink>
+ - [References: Configuration: Schema](/weaviate/config-refs/collections.mdx)
+ - [Concepts: Data structure](../concepts/data.md)
