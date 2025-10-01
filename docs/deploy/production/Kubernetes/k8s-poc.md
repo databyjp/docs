@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Are you ready to deploy and test Weaviate on a self-managed K8s (Kubernetes) cluster? This guide shows how to validate Weaviate’s capabilities in your enterprise environment.  
+Are you ready to deploy and test Weaviate on a self-managed K8s (Kubernetes) cluster? This guide shows how to validate Weaviate’s capabilities in your enterprise environment.
 
 At the end of this guide, expect to have:
 
@@ -22,7 +22,7 @@ Before beginning, ensure that you have the following:
 
 :::note
 
-Check out the Academy course [“Run Weaviate on Kubernetes”](https://docs.weaviate.io/academy/deployment/k8s) if you need assistance. 
+Check out the Academy course [“Run Weaviate on Kubernetes”](https://docs.weaviate.io/academy/deployment/k8s) if you need assistance.
 
 :::
 
@@ -35,7 +35,7 @@ Check out the Academy course [“Run Weaviate on Kubernetes”](https://docs.wea
 ## Step 1: Configure your Helm Chart
 
 - Use the official [Weaviate Helm chart](https://github.com/weaviate/weaviate-helm) for your installation:
- 
+
 ```
   helm repo add weaviate https://weaviate.github.io/weaviate-helm
   helm install my-weaviate weaviate/weaviate
@@ -44,89 +44,178 @@ Check out the Academy course [“Run Weaviate on Kubernetes”](https://docs.wea
 - Customize the values to fit your enterprise requirements (e.g., resource allocation, storage settings).
 - Deploy the chart and verify pod health.
 
-## Step 2: Network Security
+## Step 2: Network Security and Service Exposure
 
-- Configure an ingress controller to securely expose Weaviate.
-- Enable TLS with a certificate manager and enforce TLS encryption for all client-server communication.
-- Assign a domain name for external access.
-- Implement RBAC or admin lists to restrict user access.
+### Network Configuration
 
-<details>
-  <summary> An example of RBAC enabled on your Helm chart </summary>
+- Configure services with appropriate network policies:
 
 ```yaml
-  authorization:
+services:
+  rest:
+    port: 8080
+    type: LoadBalancer
+  grpc:
+    port: 50051
+    type: LoadBalancer
+
+networkPolicy:
+  enabled: true
+  ingress:
+    - ports:
+      - port: 8080
+      - port: 50051
+```
+
+### Service Exposure Options
+
+1. **LoadBalancer**:
+```yaml
+service:
+  type: LoadBalancer
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+```
+
+2. **Ingress Controller**:
+```yaml
+ingress:
+  enabled: true
+  annotations:
+    kubernetes.io/ingress.class: nginx
+  hosts:
+    - host: weaviate.example.com
+      paths:
+        - path: /
+```
+
+### Authentication and Authorization
+
+Configure robust access controls:
+
+```yaml
+authorization:
   rbac:
     enabled: true
-     root_users:
-    - admin_user1
-    - admin_user2
-```
-</details>
+    root_users:
+      - admin_user1
+      - admin_user2
 
-<details>
-<summary> An example of admin lists implemented on your Helm chart (if not using RBAC)</summary>
-
-```yaml
   admin_list:
     enabled: true
     users:
-    - admin_user1
-    - admin_user2
-    - api-key-user-admin
+      - admin_user1
+      - api-key-user-admin
     read_only_users:
-    - readonly_user1
-    - readonly_user2
-    - api-key-user-readOnly
+      - readonly_user1
 ```
-[Admin List Configuration](/deploy/configuration/authorization.md#admin-list-kubernetes)
 
-</details>
+:::tip Security Best Practices
+- Use TLS encryption
+- Implement role-based access control
+- Rotate API keys regularly
+:::
 
 :::tip
 Using an admin list will allow you to define your admin or read-only user/API-key pairs across all Weaviate resources. Whereas RBAC allows you more granular permissions by defining roles and assigning them to users either via API keys or OIDC.
 :::
 
-## Step 3: Scaling
-
-- Implement horizontal scaling to ensure high availability:
-
-```yaml
-replicaCount: 3
+## Step 3: High Availability and Resilience
+            matchExpressions:
+              - key: "app"
+                operator: In
+                values:
+                  - weaviate
 ```
 
-- Define CPU/memory limits and requests to optimize pod efficiency.
+### Sharding and Replication
 
-<details>
-<summary> An example of defining CPU and memory limits and cores </summary>
+Configure an optimal sharding strategy for your collections:
+
+```yaml
+sharding:
+  virtualPerPhysical: 128
+  desiredCount: 6
+```
+
+### Backup and Disaster Recovery
+
+Configure appropriate backup modules for your environment:
+
+```yaml
+backup:
+  module: backup-s3  # For production
+  schedule:
+    dailyBackups: 7
+    weeklyBackups: 4
+    monthlyBackups: 6
+  storageConfiguration:
+    bucket: my-weaviate-backups
+    region: us-east-1
+```
+
+### Resource Allocation
+
+Define robust CPU and memory limits to support high availability:
 
 ```yaml
 resources:
   requests:
-    cpu: "500m"
-    memory: "1Gi"
-  limits:
     cpu: "2"
-    memory: "4Gi"
+    memory: "8Gi"
+  limits:
+    cpu: "4"
+    memory: "16Gi"
 ```
-</details>
 
-## Step 4: Monitoring and Logging
+## Step 4: Memory and Performance Optimization
 
-- Use Prometheus and Grafana to collect and analyze performance metrics. 
-- Implement alerting for issue resolution.
+### Memory Management
 
-<details>
-<summary> An example of enabling service monitoring </summary>
+- Set appropriate `GOMEMLIMIT` to control Go runtime memory usage:
 
 ```yaml
-serviceMonitor:
-  enabled: true
-  interval: 30s
-  scrapeTimeout: 10s
+env:
+  - name: GOMEMLIMIT
+    value: "7GiB"  # Leave room for runtime and other processes
+  - name: GOGC
+    value: "100"  # Adjust garbage collection threshold
 ```
-</details>
 
+### Vector Index Memory Considerations
+
+Estimate vector memory footprint using the formula: $2 * numDimensions * numVectors * 4B$
+
+```yaml
+# Example for 100M vectors with 512 dimensions
+# Estimated memory: ~400GiB
+memory:
+  vectorIndex:
+    maxConnections: 64
+    efConstruction: 128
+    ef: 256
+```
+
+### Performance Tuning
+
+Optimize Weaviate performance with key configuration parameters:
+
+```yaml
+env:
+  - name: ASYNC_INDEXING
+    value: "true"
+  - name: USE_BLOCKMAX_WAND
+    value: "true"
+  - name: PERSISTENCE_LSM_ACCESS_STRATEGY
+    value: "mmap"
+```
+
+:::tip Performance Optimization
+Reduce memory footprint by:
+- Using vector compression
+- Reducing vector dimensionality
+- Adjusting HNSW index parameters
+:::
 
 ## Step 5: Upgrades and Backups
 
@@ -149,7 +238,7 @@ updateStrategy:
 
 ### Conclusion
 
-Voila! You now have a deployment that is *somewhat* ready for production. Your next step will be to complete the self-assessment and identify any gaps. 
+Voila! You now have a deployment that is *somewhat* ready for production. Your next step will be to complete the self-assessment and identify any gaps.
 
 ### Next Steps: [Production Readiness Self-Assessment](./production-readiness.md)
 
