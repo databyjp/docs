@@ -8,13 +8,35 @@ image: og/docs/installation.jpg
 :::tip End-to-end guide
 For a tutorial on how to use [minikube](https://minikube.sigs.k8s.io/docs/) to deploy Weaviate on Kubernetes, see the Weaviate Academy course, [Weaviate on Kubernetes](../../academy/deployment/k8s/index.md).
 :::
+## Prerequisites
 
-## Requirements
+### Kubernetes Cluster Requirements
+* **Kubernetes Version**: A recent Kubernetes Cluster running version 1.23 or higher.
+  - For development environments, consider using:
+    - Kubernetes built into Docker Desktop
+    - `kind` (Kubernetes in Docker)
+    - Minikube
 
-* A recent Kubernetes Cluster (at least version 1.23). If you are in a development environment, consider using the kubernetes cluster that is built into Docker desktop. For more information, see the [Docker documentation](https://docs.docker.com/desktop/kubernetes/).
-* The cluster needs to be able to provision `PersistentVolumes` using Kubernetes' `PersistentVolumeClaims`.
-* A file system that can be mounted read-write by a single node to allow Kubernetes' `ReadWriteOnce` access mode.
-* Helm version v3 or higher. The current Helm chart is version `||site.helm_version||`.
+### Storage Requirements
+* **Persistent Volume Provisioning**:
+  - Cluster must be able to create `PersistentVolumes` using Kubernetes `PersistentVolumeClaims`
+  - **Recommended Storage Types**:
+    - SAN-based storage (preferred)
+      - Amazon EBS
+      - VMware VMDK
+      - Cloud provider block storage volumes
+  - **Avoid**:
+    - NFS or NFS-like storage classes
+    - Shared file systems that don't support `ReadWriteOnce` access mode
+
+* **Storage Class Considerations**:
+  - Require a Storage Class with an associated Provisioner
+  - Must support single-node read-write access
+  - Recommended: Dynamic volume provisioning
+
+### Additional Tools
+* Helm version v3 or higher (current chart version: `||site.helm_version||`)
+* `kubectl` configured to access the Kubernetes cluster
 
 ## Weaviate Helm chart
 
@@ -52,89 +74,130 @@ helm show values weaviate/weaviate > values.yaml
 
 ### Modify values.yaml
 
-To customize the Helm chart for your environment, edit the [`values.yaml`](https://github.com/weaviate/weaviate-helm/blob/master/weaviate/values.yaml)
-file. The default `yaml` file is extensively documented to help you configure your system.
+To customize the Helm chart for your environment, edit the [`values.yaml`](https://github.com/weaviate/weaviate-helm/blob/master/weaviate/values.yaml) file.
 
-#### Replication
+#### Performance and Resource Optimization
 
-The default configuration defines one Weaviate replica cluster.
+Configure resources and performance-related settings:
 
-#### Local models
+```yaml
+resources:
+  requests:
+    cpu: '500m'     # Minimum CPU resources
+    memory: '4Gi'   # Minimum memory allocation
+  limits:
+    cpu: '2'        # Maximum CPU usage
+    memory: '8Gi'   # Maximum memory allocation
 
-Local models, such as `text2vec-transformers`, `qna-transformers`, and  `img2vec-neural` are disabled by default. To enable a model, set the model's
-`enabled` flag to `true`.
+env:
+  - ASYNC_INDEXING: 'true'     # Enable async indexing for improved performance
+  - GOMEMLIMIT: '7168MB'       # Go runtime memory limit (80% of total memory)
+  - GOGC: '100'                # Garbage collection tuning
+  - GO_PROFILING_DISABLE: 'false'  # Enable Go profiling for performance analysis
+```
 
-#### Resource limits
+#### Replication and High Availability
 
-Starting in Helm chart version 17.0.1, constraints on module resources are commented out to improve performance. To constrain resources for specific modules, add the constraints in your `values.yaml` file.
+```yaml
+replication:
+  enabled: true
+  count: 3  # Recommended minimum for high availability
+```
 
-#### gRPC service configuration
-
-Starting in Helm chart version 17.0.0, the gRPC service is enabled by default. If you use an older Helm chart, edit your `values.yaml` file to enable gRPC.
-
-Check that the `enabled` field is set to `true` and the `type` field to `LoadBalancer`. These settings allow you to access the [gRPC API](https://weaviate.io/blog/grpc-performance-improvements) from outside the Kubernetes cluster.
+#### gRPC Service Configuration
 
 ```yaml
 grpcService:
-  enabled: true  # ⬅️ Make sure this is set to true
+  enabled: true
   name: weaviate-grpc
   ports:
     - name: grpc
       protocol: TCP
       port: 50051
-  type: LoadBalancer  # ⬅️ Set this to LoadBalancer (from NodePort)
+  type: LoadBalancer  # Allows external access to gRPC API
 ```
 
-#### Authentication and authorization
+#### Performance Tuning Parameters
 
-:::tip
+```yaml
+env:
+  - USE_BLOCKMAX_WAND: 'true'     # Recommended for large hybrid searches
+  - QUERY_DEFAULTS_LIMIT: '100'   # Adjust default query result limit
+  - QUERY_MAXIMUM_RESULTS: '10000'  # Maximum allowed query results
+```
 
-Weaviate Helm charts automatically generate random username/password values each time Weaviate is deployed to Kubernetes, this means that when Weaviate is deployed with Helm charts internode communication is always secured.
-
+:::note Performance Considerations
+- Adjust `resources` based on your expected workload
+- Monitor and tune `GOMEMLIMIT` and `GOGC` for optimal memory management
+- Enable `ASYNC_INDEXING` for write-heavy workloads
 :::
 
-An example configuration for authentication:
+#### Authentication and Authorization
+
+:::tip Security Best Practices
+Weaviate Helm charts automatically generate secure, random credentials for inter-node communication.
+:::
+
+##### API Key Authentication
 
 ```yaml
 authentication:
   apikey:
     enabled: true
     allowed_keys:
-      - readonly-key
-      - secr3tk3y
+      - readonly-key     # Read-only access
+      - admin-key        # Full access key
     users:
       - readonly@example.com
       - admin@example.com
+```
+
+##### Anonymous Access
+
+```yaml
+authentication:
   anonymous_access:
-    enabled: false
+    enabled: false  # Recommended to disable in production
+```
+
+##### OIDC Configuration
+
+```yaml
+authentication:
   oidc:
     enabled: true
-    issuer: https://auth.wcs.api.weaviate.io/auth/realms/SeMI
+    issuer: https://your-identity-provider.com
     username_claim: email
     groups_claim: groups
-    client_id: wcs
+    client_id: weaviate-client
+```
+
+##### Role-Based Access Control (RBAC)
+
+```yaml
 authorization:
   admin_list:
     enabled: true
     users:
-      - someuser@weaviate.io
       - admin@example.com
+      - cluster-admin@example.com
     readonly_users:
       - readonly@example.com
 ```
 
+:::note Authentication Workflow
+1. API keys are mapped to specific user identities
+2. OIDC provides centralized identity management
+3. RBAC controls user permissions and access levels
+:::
 
-In this example, the key `readonly-key` will authenticate a user as the `readonly@example.com` identity, and `secr3tk3y` will authenticate a user as `admin@example.com`.
+##### Inter-node Communication
+- Credentials are automatically generated and rotated
+- Secure communication between Weaviate nodes is ensured
 
-OIDC authentication is also enabled, with WCD as the token issuer/identity provider. Thus, users with WCD accounts could be authenticated. This configuration sets `someuser@weaviate.io` as an admin user, so if `someuser@weaviate.io` were to authenticate, they will be given full (read and write) privileges.
-
-import WCDOIDCWarning from '/_includes/wcd-oidc.mdx';
-
-<WCDOIDCWarning/>
-
-For further, general documentation on authentication and authorization configuration, see:
-- [Authentication](../configuration/authentication.md)
-- [Authorization](../configuration/authorization.md)
+###### Additional Security Resources
+- [Authentication Configuration](../configuration/authentication.md)
+- [Authorization Configuration](../configuration/authorization.md)
 
 #### Run as non-root user
 
@@ -239,15 +302,34 @@ kubectl get storageclasses
 
 ## Troubleshooting
 
-- If you see `No private IP address found, and explicit IP not provided`, set the pod subnet to be in an valid ip address range of the following:
+### Networking Issues
+
+- If you encounter `No private IP address found, and explicit IP not provided`, ensure your pod subnet is in a valid IP address range:
 
     ```
-    10.0.0.0/8
-    100.64.0.0/10
-    172.16.0.0/12
-    192.168.0.0/16
-    198.19.0.0/16
+    10.0.0.0/8      # Common private network range
+    100.64.0.0/10   # Carrier-grade NAT range
+    172.16.0.0/12   # Another private network range
+    192.168.0.0/16  # Local network range
+    198.19.0.0/16   # Another private range
     ```
+
+### Common Deployment Issues
+
+- **Pod Scheduling Failures**:
+  - Check node resources and capacity
+  - Verify storage class and persistent volume configuration
+  - Ensure sufficient CPU and memory are available
+
+- **Authentication Problems**:
+  - Verify OIDC configuration
+  - Check API key and user mappings
+  - Validate identity provider settings
+
+- **Performance Bottlenecks**:
+  - Monitor resource utilization
+  - Adjust `GOMEMLIMIT` and `GOGC` settings
+  - Enable Go profiling for detailed performance analysis
 
 ### Set `CLUSTER_HOSTNAME` if it may change over time
 
