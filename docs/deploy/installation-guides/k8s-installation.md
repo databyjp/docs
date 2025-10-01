@@ -64,9 +64,55 @@ The default configuration defines one Weaviate replica cluster.
 Local models, such as `text2vec-transformers`, `qna-transformers`, and  `img2vec-neural` are disabled by default. To enable a model, set the model's
 `enabled` flag to `true`.
 
-#### Resource limits
+#### Resource Limits and Performance Tuning
 
-Starting in Helm chart version 17.0.1, constraints on module resources are commented out to improve performance. To constrain resources for specific modules, add the constraints in your `values.yaml` file.
+Starting in Helm chart version 17.0.1, constraints on module resources are commented out to improve performance. We recommend explicitly defining resource limits to optimize vector search performance:
+
+```yaml
+resources:
+  requests:
+    cpu: '500m'
+    memory: '4Gi'
+  limits:
+    cpu: '2'
+    memory: '16Gi'
+  modules:
+    text2vec-transformers:
+      resources:
+        limits:
+          memory: '4Gi'
+```
+
+##### Vector Search Optimization
+
+When deploying Weaviate for vector search, consider the following optimization strategies:
+
+- **HNSW Index Configuration**:
+  - Tune `maxConnections` to balance memory usage and search performance
+  - Adjust `efConstruction` and `ef` parameters for optimal recall
+  - Example configuration:
+    ```yaml
+    env:
+      - VECTOR_INDEX_DEFAULT_MAX_CONNECTIONS: 64
+      - VECTOR_INDEX_DEFAULT_EF_CONSTRUCTION: 200
+      - VECTOR_INDEX_DEFAULT_EF: 100
+    ```
+
+- **Memory Allocation**:
+  - Estimate vector memory footprint: $2 * numDimensions * numVectors * 4B$
+  - Keep 20% extra memory for page cache and system requirements
+  - Consider vector quantization to reduce memory usage
+  - Use compression techniques to minimize vector storage overhead
+
+- **Performance Tuning**:
+  - Enable async indexing for write-heavy workloads
+  - Use `LIMIT_RESOURCES` to optimize CPU and memory utilization
+  - Consider enabling `USE_BLOCKMAX_WAND` for large hybrid searches
+  ```yaml
+  env:
+    - ASYNC_INDEXING: 'true'
+    - USE_BLOCKMAX_WAND: 'true'
+  ```
 
 #### gRPC service configuration
 
@@ -93,18 +139,25 @@ Weaviate Helm charts automatically generate random username/password values each
 
 :::
 
-An example configuration for authentication:
+#### Authentication and Authorization
+
+:::tip Enhanced Authentication Management
+Weaviate Helm charts provide flexible authentication options with granular key and user management.
+:::
+
+Example advanced authentication configuration:
 
 ```yaml
 authentication:
   apikey:
     enabled: true
     allowed_keys:
-      - readonly-key
-      - secr3tk3y
-    users:
-      - readonly@example.com
-      - admin@example.com
+      - key: readonly-key
+        user: readonly@example.com
+        permissions: read
+      - key: admin-key
+        user: admin@example.com
+        permissions: write
   anonymous_access:
     enabled: false
   oidc:
@@ -113,6 +166,7 @@ authentication:
     username_claim: email
     groups_claim: groups
     client_id: wcs
+
 authorization:
   admin_list:
     enabled: true
@@ -121,11 +175,19 @@ authorization:
       - admin@example.com
     readonly_users:
       - readonly@example.com
+  role_based_access_control:
+    enabled: true
+    roles:
+      - name: admin
+        permissions: [read, write]
+      - name: reader
+        permissions: [read]
 ```
 
-
-In this example, the key `readonly-key` will authenticate a user as the `readonly@example.com` identity, and `secr3tk3y` will authenticate a user as `admin@example.com`.
-
+Key improvements:
+- Granular key-based permissions
+- Role-based access control
+- Detailed user and group management
 OIDC authentication is also enabled, with WCD as the token issuer/identity provider. Thus, users with WCD accounts could be authenticated. This configuration sets `someuser@weaviate.io` as an admin user, so if `someuser@weaviate.io` were to authenticate, they will be given full (read and write) privileges.
 
 import WCDOIDCWarning from '/_includes/wcd-oidc.mdx';
@@ -183,60 +245,79 @@ See the [1.25 migration guide for Kubernetes](../migration/weaviate-1-25.md) for
 - [Cannot list resource "configmaps" in API group when deploying Weaviate k8s setup on GCP](https://stackoverflow.com/questions/58501558/cannot-list-resource-configmaps-in-api-group-when-deploying-weaviate-k8s-setup)
 - [Error: UPGRADE FAILED: configmaps is forbidden](https://stackoverflow.com/questions/58501558/cannot-list-resource-configmaps-in-api-group-when-deploying-weaviate-k8s-setup)
 
-### Using EFS with Weaviate
+### Using Persistent Volumes for Vector Search
 
-In some circumstances, you may wish, or need, to use EFS (Amazon Elastic File System) with Weaviate. And we note in the case of AWS Fargate, you must create the [PV (persistent volume)](https://kubernetes.io/docs/concepts/storage/persistent-volumes/) manually, as the PVC will NOT create a PV for you.
+#### Storage Considerations for Vector Workloads
 
-To use EFS with Weaviate, you need to:
+When deploying Weaviate with vector search, selecting the right storage solution is crucial:
 
-- Create an EFS file system.
-- Create an EFS access point for every Weaviate replica.
-    - All of the Access Points must have a different root-directory so that Pods do not share the data, otherwise it will fail.
-- Create EFS mount targets for each subnet of the VPC where Weaviate is deployed.
-- Create StorageClass in Kubernetes using EFS.
-- Create Weaviate Volumes, where each volume has a different AccessPoint for VolumeHandle(as mentioned above).
-- Deploy Weaviate.
+- **Persistent Volume Requirements**:
+  - High I/O performance
+  - Low latency access
+  - Sufficient capacity for vector indexes
+  - Support for `ReadWriteOnce` access mode
 
-This code is an example of a PV for `weaviate-0` Pod:
+##### EFS Configuration with Vector Search
+
+For AWS deployments, use EFS with careful configuration:
+
+- Create an EFS file system optimized for vector data
+- Create separate EFS access points for each Weaviate replica
+- Ensure unique root directories to prevent data sharing
+- Create EFS mount targets for each subnet
+
+Example PersistentVolume for vector search:
 
 ```yaml
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: weaviate-0
+  name: weaviate-vector-storage
 spec:
   capacity:
-    storage: 8Gi
+    storage: 100Gi  # Adjust based on vector index size
   volumeMode: Filesystem
   accessModes:
     - ReadWriteOnce
-  persistentVolumeReclaimPolicy: Delete
-  storageClassName: "efs-sc"
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: 'efs-vector-sc'
   csi:
     driver: efs.csi.aws.com
-    volumeHandle: <FileSystemId>::<AccessPointId-for-weaviate-0-Pod>
-  claimRef:
-    namespace: <namespace where Weaviate is/going to be deployed>
-    name: weaviate-data-weaviate-0
+    volumeHandle: <FileSystemId>::<AccessPointId>
 ```
 
-For more, general information on running EFS with Fargate, we recommend reading [this AWS blog](https://aws.amazon.com/blogs/containers/running-stateful-workloads-with-amazon-eks-on-aws-fargate-using-amazon-efs/).
+#### Azure File CSI Considerations
 
-### Using Azure file CSI with Weaviate
-The provisioner `file.csi.azure.com` is **not supported** and will lead to file corruptions. Instead, make sure the storage class defined in values.yaml is from provisioner `disk.csi.azure.com`, for example:
+:::caution Azure Storage Provisioner
+The provisioner `file.csi.azure.com` is **not supported** and may cause file corruptions.
+:::
+
+Use the `disk.csi.azure.com` provisioner:
 
 ```yaml
 storage:
-  size: 32Gi
-  storageClassName: managed
+  size: 100Gi  # Increased for vector index
+  storageClassName: managed-premium  # High-performance tier
 ```
 
-you can get the list of available storage classes in your cluster with:
-
-```
+Verify available storage classes:
+```bash
 kubectl get storageclasses
 ```
 
+#### Storage Performance Recommendations
+
+- Prefer SSD or NVMe-based storage classes
+- Choose storage with high IOPS
+- Consider separate storage for:
+  - Vector indexes
+  - Object metadata
+  - Write-ahead logs
+
+List available storage classes:
+```bash
+kubectl get storageclasses
+```
 ## Troubleshooting
 
 - If you see `No private IP address found, and explicit IP not provided`, set the pod subnet to be in an valid ip address range of the following:
