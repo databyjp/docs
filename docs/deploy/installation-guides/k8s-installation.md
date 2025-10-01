@@ -11,9 +11,14 @@ For a tutorial on how to use [minikube](https://minikube.sigs.k8s.io/docs/) to d
 
 ## Requirements
 
+:::caution Production Deployments
+For **production environments**, Kubernetes is the **only supported deployment method**. Other deployment options (Docker, docker-compose) are suitable only for testing and development.
+:::
+
 * A recent Kubernetes Cluster (at least version 1.23). If you are in a development environment, consider using the kubernetes cluster that is built into Docker desktop. For more information, see the [Docker documentation](https://docs.docker.com/desktop/kubernetes/).
 * The cluster needs to be able to provision `PersistentVolumes` using Kubernetes' `PersistentVolumeClaims`.
 * A file system that can be mounted read-write by a single node to allow Kubernetes' `ReadWriteOnce` access mode.
+* **SAN-based storage preferred** (EBS, VMDK, etc.). ⚠️ **NFS or NFS-like storage classes are not supported**.
 * Helm version v3 or higher. The current Helm chart is version `||site.helm_version||`.
 
 ## Weaviate Helm chart
@@ -50,14 +55,133 @@ Get the default `values.yaml` configuration file from the Weaviate helm chart:
 helm show values weaviate/weaviate > values.yaml
 ```
 
-### Modify values.yaml
+## Key Configuration Parameters
+
+Proper configuration of Weaviate requires understanding several critical parameters that affect performance, memory usage, and stability.
+
+### Memory Configuration
+
+#### GOMEMLIMIT
+Sets the memory limit for the Go runtime. Keep at least **10 to 20%** for the Go runtime and other processes.
+
+```yaml
+env:
+  GOMEMLIMIT: "16GiB"  # Example: 80% of 20GB total memory
+```
+
+#### GOMAXPROCS
+Sets the maximum number of threads for concurrent execution.
+
+```yaml
+env:
+  GOMAXPROCS: "8"  # Number of CPU cores to use
+```
+
+#### LIMIT_RESOURCES
+Sets memory usage to **80%** of the total memory and uses **all but one CPU core**. It overrides any `GOMEMLIMIT` values but respects `GOMAXPROCS` settings.
+
+```yaml
+env:
+  LIMIT_RESOURCES: "true"
+```
+
+#### PERSISTENCE_LSM_ACCESS_STRATEGY
+By default, Weaviate accesses data using `mmap`. While mmap may be preferred for memory management benefits, if you experience stalling under heavy memory load, try `pread` instead.
+
+```yaml
+env:
+  PERSISTENCE_LSM_ACCESS_STRATEGY: "mmap"  # or "pread"
+```
+
+#### GOGC
+Environment variable controlling the garbage collector's target percentage. It determines how much memory can grow before triggering a collection cycle.
+
+```yaml
+env:
+  GOGC: "100"  # Default value
+```
+
+### Memory Requirements Calculation
+
+The HNSW index **must** fit in memory. You can estimate memory usage with this formula:
+
+**Memory = 2 × numDimensions × numVectors × 4B**
+
+For example, 100M vectors with 512 dimensions:
+`512 × 10^8 × 4 × 2 ≈ 400GiB`
+
+:::tip Memory Reduction Strategies
+- Use vector compression/quantization
+- Reduce vector dimensionality (e.g., PCA)
+- Reduce HNSW `maxConnections` (increase `ef` and `efConstruction` to maintain recall)
+:::
+
+### CPU Requirements
+
+Use this formula to estimate CPU requirements:
+
+**minimumCPU = QPS × AverageCPULatencyPerQuery + 6**
+
+Average CPU latency estimates:
+- Pure Vector search: ~3-4ms (1M objects)
+- Filtered search: ~10ms
+- Hybrid search: ~20ms
+- Latency roughly doubles every 10x increase in vectors
+
+Example: For 100M vectors with hybrid search (~80ms latency) at 200 QPS peak:
+`200 × 0.080 + 6 ≈ 22 CPU cores`
+
+### Network Configuration
+
+Weaviate requires the following ports:
+- **REST API**: Port 8080 (HTTP)
+- **gRPC API**: Port 50051 (gRPC/Protocol Buffer)
+- **Gossip Protocol**: Port 7102 (internal cluster communication)
+- **Data Bind**: Port 7103 (internal data exchange)
+
+For external access, configure LoadBalancer or Ingress appropriately.
+
 
 To customize the Helm chart for your environment, edit the [`values.yaml`](https://github.com/weaviate/weaviate-helm/blob/master/weaviate/values.yaml)
 file. The default `yaml` file is extensively documented to help you configure your system.
 
-#### Replication
+#### High Availability and Replication
 
-The default configuration defines one Weaviate replica cluster.
+For production environments, deploy a minimum **3-node cluster** with proper replication:
+
+```yaml
+replicas: 3
+
+env:
+  REPLICATION_MINIMUM_FACTOR: 3
+```
+
+##### Anti-affinity Configuration
+Ensure pods are distributed across different nodes:
+
+```yaml
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 1
+        podAffinityTerm:
+          topologyKey: "kubernetes.io/hostname"
+          labelSelector:
+            matchExpressions:
+              - key: "app"
+                operator: In
+                values:
+                  - weaviate
+```
+
+##### Sharding Strategy
+Configure proper sharding for your collections:
+
+```python
+# Example Python client configuration
+Configure.sharding(virtual_per_physical=128, desired_count=6)
+```
+
 
 #### Local models
 
@@ -123,6 +247,49 @@ authorization:
       - readonly@example.com
 ```
 
+## Backup Strategy
+
+Establish a proper backup strategy using appropriate backup modules:
+
+### Backup Modules
+
+**For production environments:**
+- `backup-s3` - Amazon S3 backup
+- `backup-gcs` - Google Cloud Storage backup
+- `backup-azure` - Azure Storage backup
+
+**For development/testing:**
+- `backup-filesystem` - Local filesystem backup
+
+```yaml
+modules:
+  backup-s3:
+    enabled: true
+    envconfig:
+      BACKUP_S3_BUCKET: "my-weaviate-backups"
+      BACKUP_S3_ENDPOINT: "s3.amazonaws.com"
+      BACKUP_S3_REGION: "us-east-1"
+```
+
+### Alternative: Disk Snapshots
+
+You can also rely on disk snapshots for backup:
+- LVM or VMDK snapshots
+- EBS snapshots
+- Cloud provider snapshot services
+
+:::note
+Disk snapshots should be configured outside of Helm charts and require coordination with your infrastructure team.
+:::
+
+### Backup Best Practices
+
+- **Schedule**: Implement incremental and regular backup schedules
+  - Example: 7 daily, 4 weekly, 6 monthly backups
+- **Testing**: Regularly test your recovery procedures
+- **Disaster Recovery**: Plan and test disaster recovery scenarios
+- **Retention**: Define appropriate backup retention policies
+
 
 In this example, the key `readonly-key` will authenticate a user as the `readonly@example.com` identity, and `secr3tk3y` will authenticate a user as `admin@example.com`.
 
@@ -135,6 +302,51 @@ import WCDOIDCWarning from '/_includes/wcd-oidc.mdx';
 For further, general documentation on authentication and authorization configuration, see:
 - [Authentication](../configuration/authentication.md)
 - [Authorization](../configuration/authorization.md)
+
+## Performance Optimization
+
+### General Performance Settings
+
+```yaml
+env:
+  # Enable asynchronous indexing for better write performance
+  ASYNC_INDEXING: "true"
+
+  # Disable profiling in production for better performance
+  GO_PROFILING_DISABLE: "true"
+
+  # Query performance settings
+  QUERY_DEFAULTS_LIMIT: "10"
+  QUERY_MAXIMUM_RESULTS: "10000"
+  QUERY_SLOW_LOG_ENABLED: "false"
+```
+
+### Large Scale Optimizations
+
+```yaml
+env:
+  # Required for large hybrid or keyword search workloads
+  USE_BLOCKMAX_WAND: "true"
+
+  # ACORN HNSW index improves filtered vector search performance
+  # Configure per collection via client libraries
+```
+
+### Schema Management
+
+```yaml
+env:
+  # Disable auto-schema in production for better control
+  AUTOSCHEMA_ENABLED: "false"
+```
+
+### Logging Configuration
+
+```yaml
+env:
+  LOG_LEVEL: "info"
+  LOG_FORMAT: "json"
+```
 
 #### Run as non-root user
 
