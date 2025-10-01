@@ -145,86 +145,140 @@ This means that the feature is still under development and may change in future 
 
 ### 1-bit RQ
 
-1-bit RQ is an asymmetric quantization method that provides close to 32x compression as dimensionality increases. **1-bit RQ serves as a more robust and accurate alternative to BQ** with only a slight performance trade-off (approximately 10% decrease in throughput in internal testing compared to BQ). While more performant than PQ in terms of encoding time and distance calculations, 1-bit RQ typically offers slightly lower recall than well-tuned PQ.
+1-bit RQ is an asymmetric quantization method that provides close to 32x compression as dimensionality increases. **1-bit RQ serves as a more robust and accurate alternative to BQ** with the following characteristics:
 
-The method works as follows:
+- Approximately 10% decrease in throughput compared to BQ in internal testing
+- More performant than PQ in terms of encoding time and distance calculations
+- Slightly lower recall than well-tuned PQ
 
-1. **Fast pseudorandom rotation**: The same rotation process as 8-bit RQ is applied to the input vector. For 1-bit RQ, the output dimension is always padded to at least 256 bits to improve performance on low-dimensional data.
+The method works with a unique asymmetric approach:
+
+1. **Fast pseudorandom rotation**: Similar to 8-bit RQ, with output dimension always padded to at least 256 bits to improve performance on low-dimensional data.
 
 2. **Asymmetric quantization**:
    - **Data vectors**: Quantized using 1 bit per dimension by storing only the sign of each entry
    - **Query vectors**: Scalar quantized using 5 bits per dimension during search
 
-<!-- TODO[g-despot]: Clarify how 5 bit search vectors are compared to 1 bit -->
+This asymmetric approach improves recall by:
+- Using more precision for query vectors during distance calculation
+- Essentially matching BQ recall on datasets like OpenAI embeddings
+- Performing well on datasets where BQ typically struggles (such as SIFT)
 
-This asymmetric approach improves recall compared to symmetric 1-bit schemes (such as BQ) by using more precision for query vectors during distance calculation. On datasets well-suited for BQ (like OpenAI embeddings), 1-bit RQ essentially matches BQ recall. It also works well on datasets where BQ performs poorly (such as [SIFT](https://arxiv.org/abs/2504.09081)).
+### Performance and Compression Characteristics
 
-### RQ characteristics
+Key performance insights include:
+- High native recall of 98-99% with RQ
+- Potential to disable rescoring for maximum query performance
+- Compression rates approaching 4x (8-bit) and 32x (1-bit) as dimensionality increases
 
-The rotation step provides multiple benefits. It tends to reduce the quantization interval and decrease quantization error by distributing values more uniformly. It also distributes the distance information more evenly across all dimensions, providing a better starting point for distance estimation.
+:::caution Preview Status
 
-Both RQ variants round up the number of dimensions to multiples of 64, which means that low-dimensional data (< 64 or 128 dimensions) might result in less than optimal compression. Additionally, several factors affect the actual compression rates:
+**1-bit Rotational quantization (RQ)** is currently in **preview** status:
+- Feature may change in future releases
+- Potential for breaking changes
+- **Not recommended for production environments**
 
-- **Auxiliary data storage**: 16 bytes for 8-bit RQ and 8 bytes for 1-bit RQ are stored with the compressed codes
-- **Dimension rounding**: Dimensionality is rounded up to the nearest multiple of 64 and 1-bit RQ is also padded to at least 256 bits
-
-Due to these factors, the 4x and 32x compression rates are only approached as dimensionality increases. These effects are more pronounced for low-dimensional vectors.
-
-While inspired by extended [RaBitQ](https://arxiv.org/abs/2405.12497), this implementation differs significantly for performance reasons. It uses fast pseudorandom rotations instead of truly random rotations.
-:::tip
+:::
 
 Learn more about how to [configure rotational quantization](../configuration/compression/rq-compression.md) in Weaviate or dive deer into the [implementation details and theoretical background](https://weaviate.io/blog/8-bit-rotational-quantization).
 
 :::
+## Over-fetching / Re-scoring
 
-## Over-fetching / re-scoring
+Weaviate employs an over-fetching and re-scoring strategy for SQ, RQ, and BQ to compensate for the potential loss in accuracy during compressed vector distance calculations.
 
-Weaviate over-fetches results and then re-scores them when you use SQ, RQ, or BQ. This is because the distance calculation on the compressed vectors is not as accurate as the same calculation on the original vector embedding.
+### How Over-fetching Works
 
-When you run a query, Weaviate compares the query limit against a configurable `rescoreLimit` parameter.
+1. Retrieve compressed objects beyond the query limit
+2. Fetch original, uncompressed vector embeddings
+3. Recalculate query distance scores using uncompressed vectors
 
-The query retrieves compressed objects until the object count reaches whichever limit is greater. Then, Weaviate fetches the original, uncompressed vector embeddings that correspond to the compressed vectors. The uncompressed vectors are used to recalculate the query distance scores.
+**Example Scenario:**
+- Query limit: 10 results
+- Rescore limit: 200 objects
+- Weaviate fetches 200 objects and returns top 10 after rescoring
 
-For example, if a query is made with a limit of 10, and a rescore limit of 200, Weaviate fetches 200 objects. After rescoring, the query returns top 10 objects. This process offsets the loss in search quality (recall) that is caused by compression.
+### RQ Optimization
 
-:::note RQ optimization
-With RQ's high native recall of 98-99%, you can often disable rescoring (set `rescoreLimit` to 0) for maximum query performance with minimal impact on search quality.
+With RQ's high native recall (98-99%), you can often:
+- Disable rescoring by setting `rescoreLimit` to 0
+- Achieve maximum query performance
+- Minimize impact on search quality
+
+## Vector Compression Use Cases
+
+### Use Case Recommendations
+
+#### Multi-tenant Data (<1M vectors)
+- **Recommended Compression:** Binary Quantization (BQ)
+- Advantages:
+  - Drastically reduced memory usage
+  - Minimal impact on recall due to overfetching
+  - No training required
+
+#### Medium Datasets (<100M vectors)
+- **Recommended Compression:** Scalar Quantization (SQ)
+- Advantages:
+  - Good balance between compression and accuracy
+  - Predictable performance
+  - Suitable for single-tenant scenarios
+
+#### Large Datasets (>100M vectors)
+- **Recommended Compression:** Product Quantization (PQ)
+- Advantages:
+  - Significant memory and cost reduction
+  - Maximum flexibility
+  - Advanced compression for complex vector spaces
+
+### Performance Comparison
+
+| Index Type     | Indexing Time | Memory Usage | Compression Ratio | Recall Impact |
+|---------------|--------------|--------------|------------------|--------------|
+| HNSW          | 8m42s        | 6437.05MB    | No compression   | Baseline     |
+| HNSW + PQ     | 21m25s       | 930.36MB     | ~88%             | Minor        |
+| HNSW + BQ     | 3m43s        | 711.38MB     | ~97%             | Moderate     |
+| FLAT + BQ     | 54s          | 260.16MB     | ~97%             | Moderate     |
+
+## Vector Compression Configuration Examples
+
+### Binary Quantization
+```python
+vector_index_config=wc.Configure.VectorIndex.hnsw(
+    quantizer=wc.Configure.VectorIndex.Quantizer.bq(
+        cache=True,
+        rescore_limit=-1
+    )
+)
+```
+
+### Scalar Quantization
+```python
+vector_index_config=wc.Configure.VectorIndex.hnsw(
+    quantizer=wc.Configure.VectorIndex.Quantizer.sq(
+        rescore_limit=-1,
+        training_limit=100_000,
+        cache=True
+    )
+)
+```
+
+### Product Quantization
+```python
+vector_index_config=wc.Configure.VectorIndex.hnsw(
+    quantizer=wc.Configure.VectorIndex.Quantizer.pq(
+        segments=128,
+        encoder_type='kmeans'
+    )
+)
+```
+
+## Further Resources
+
+:::info Related Pages
+- [Configuration: Compression Techniques](/configuration/compression/)
+- [Weaviate Academy: Vector Compression Course](/academy/compression/)
+- [Blog: Reducing Memory with Product Quantization](https://weaviate.io/blog/pq-rescoring)
 :::
-
-## Vector compression with vector indexing
-
-### With an HNSW index
-
-An [HNSW index](./indexing/vector-index.md#hierarchical-navigable-small-world-hnsw-index) can be configured using [PQ](#product-quantization), [SQ](#scalar-quantization), [RQ](#rotational-quantization), or [BQ](#binary-quantization). Since HNSW is in memory, compression can reduce your memory footprint or allow you to store more data in the same amount of memory.
-
-:::tip
-You might be also interested in our blog post [HNSW+PQ - Exploring ANN algorithms Part 2.1](https://weaviate.io/blog/ann-algorithms-hnsw-pq).
-:::
-
-### With a flat index
-
-[BQ](#binary-quantization) can use a [flat index](./indexing/inverted-index.md). A flat index search reads from disk, compression reduces the amount of data Weaviate has to read so searches are faster.
-
-## Rescoring
-
-Quantization inherently involves some loss information due to the reduction in information precision. To mitigate this, Weaviate uses a technique called rescoring, using the uncompressed vectors that are also stored alongside compressed vectors. Rescoring recalculates the distance between the original vectors of the returned candidates from the initial search. This ensures that the most accurate results are returned to the user.
-
-In some cases, rescoring also includes over-fetching, whereby additional candidates are fetched to ensure that the top candidates are not omitted in the initial search.
-
-## Further resources
-
-:::info Related pages
-
-- [Concepts: Indexing](./indexing/index.md)
-- [Concepts: Vector Indexing](./indexing/vector-index.md)
-- [Configuration: Vector index](../config-refs/indexing/vector-index.mdx)
-- [Configuration: Schema (Configure semantic indexing)](../config-refs/indexing/vector-index.mdx#configure-semantic-indexing)
-- [How to configure: Binary quantization (compression)](../configuration/compression/bq-compression.md)
-- [How to configure: Product quantization (compression)](../configuration/compression/pq-compression.md)
-- [How to configure: Scalar quantization (compression)](../configuration/compression/sq-compression.md)
-- [How to configure: Rotational quantization (compression)](../configuration/compression/rq-compression.md)
-- [Weaviate Academy: 250 Vector Compression](../../academy/py/compression/index.md)
-
 :::
 
 ## Questions and feedback

@@ -9,12 +9,18 @@ Uncompressed vectors can be large. Compressed vectors lose some information, but
 
 ## Vector quantization
 
-To balance resource costs and system performance, consider one of these options:
+To balance resource costs and system performance, consider these options (recommended order):
 
-- **[Rotational Quantization (RQ)](rq-compression.md)** (_recommended_)
-- **[Product Quantization (PQ)](pq-compression.md)**
-- **[Binary Quantization (BQ)](bq-compression.md)**
-- **[Scalar Quantization (SQ)](sq-compression.md)**
+1. **[Rotational Quantization (RQ)](rq-compression.md)**
+   - 8-bit RQ (recommended in v1.33)
+   - 1-bit RQ (preview feature)
+2. **[Scalar Quantization (SQ)](sq-compression.md)**
+3. **[Product Quantization (PQ)](pq-compression.md)**
+4. **[Binary Quantization (BQ)](bq-compression.md)**
+
+:::info Preview Feature
+1-bit Rotational Quantization (RQ) is available as a preview feature in v1.33. Not recommended for production use.
+:::
 
 You can also [disable quantization](uncompressed.md) for a collection.
 
