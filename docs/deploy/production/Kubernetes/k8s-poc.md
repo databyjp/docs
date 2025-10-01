@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Are you ready to deploy and test Weaviate on a self-managed K8s (Kubernetes) cluster? This guide shows how to validate Weaviate’s capabilities in your enterprise environment.  
+Are you ready to deploy and test Weaviate on a self-managed K8s (Kubernetes) cluster? This guide shows how to validate Weaviate’s capabilities in your enterprise environment.
 
 At the end of this guide, expect to have:
 
@@ -22,7 +22,7 @@ Before beginning, ensure that you have the following:
 
 :::note
 
-Check out the Academy course [“Run Weaviate on Kubernetes”](https://docs.weaviate.io/academy/deployment/k8s) if you need assistance. 
+Check out the Academy course [“Run Weaviate on Kubernetes”](https://docs.weaviate.io/academy/deployment/k8s) if you need assistance.
 
 :::
 
@@ -35,7 +35,7 @@ Check out the Academy course [“Run Weaviate on Kubernetes”](https://docs.wea
 ## Step 1: Configure your Helm Chart
 
 - Use the official [Weaviate Helm chart](https://github.com/weaviate/weaviate-helm) for your installation:
- 
+
 ```
   helm repo add weaviate https://weaviate.github.io/weaviate-helm
   helm install my-weaviate weaviate/weaviate
@@ -83,8 +83,13 @@ Check out the Academy course [“Run Weaviate on Kubernetes”](https://docs.wea
 
 </details>
 
-:::tip
-Using an admin list will allow you to define your admin or read-only user/API-key pairs across all Weaviate resources. Whereas RBAC allows you more granular permissions by defining roles and assigning them to users either via API keys or OIDC.
+:::tip Authorization Methods
+Weaviate supports two primary authorization methods:
+
+1. **Admin List**: Simple user/API-key pair management across all Weaviate resources
+2. **RBAC (Role-Based Access Control)**: More granular permissions via roles, assignable through API keys or OIDC
+
+Choose the method that best fits your security requirements and operational complexity.
 :::
 
 ## Step 3: Scaling
@@ -95,25 +100,82 @@ Using an admin list will allow you to define your admin or read-only user/API-ke
 replicaCount: 3
 ```
 
-- Define CPU/memory limits and requests to optimize pod efficiency.
+## Resource Management and Performance
 
-<details>
-<summary> An example of defining CPU and memory limits and cores </summary>
+### Memory Estimation and Allocation
+
+When planning your Weaviate deployment, use this memory estimation formula:
+
+**Memory Footprint = 2 * numDimensions * numVectors * 4 Bytes**
+
+For example:
+- 100M vectors with 512 dimensions would require ~400 GiB of memory
+- Always keep 20% extra memory for page cache and additional requirements
+
+#### Memory Configuration Strategies
+
+1. **GOMEMLIMIT Configuration**
+   - Set memory limit for Go runtime
+   - Keep 10-20% of total memory for runtime and other processes
+
+2. **Vector Memory Optimization**
+   - Use vector compression techniques
+   - Reduce dimensionality via Principal Component Analysis (PCA)
+   - Adjust HNSW index parameters like `maxConnections`
 
 ```yaml
 resources:
   requests:
-    cpu: "500m"
-    memory: "1Gi"
+    cpu: '500m'
+    memory: '1Gi'
   limits:
-    cpu: "2"
-    memory: "4Gi"
+    cpu: '2'
+    memory: '4Gi'
+  environment:
+    GOMEMLIMIT: '3Gi'
+    PERSISTENCE_LSM_ACCESS_STRATEGY: 'mmap'
+    GOGC: '100'
 ```
-</details>
+
+### Performance Optimization
+
+Configure performance-critical settings to enhance Weaviate's efficiency:
+
+```yaml
+environment:
+  ASYNC_INDEXING: true
+  USE_BLOCKMAX_WAND: true
+  ACORN_HNSW_INDEX: true
+```
+
+### Scaling and Replication
+
+Implement robust scaling strategies:
+
+```yaml
+replicaCount: 3
+replication:
+  factor: 3
+  sharding:
+    virtual_per_physical: 128
+    desired_count: 6
+```
+
+### Backup and Disaster Recovery
+
+Select appropriate backup modules based on your environment:
+
+- Production: `backup-s3`, `backup-gcs`, `backup-azure`
+- Development: `backup-filesystem`
+
+Implement a comprehensive backup strategy:
+- Regular incremental backups
+- Retention policy (e.g., 7 daily, 4 weekly, 6 monthly)
+- Test recovery procedures
 
 ## Step 4: Monitoring and Logging
 
-- Use Prometheus and Grafana to collect and analyze performance metrics. 
+- Use Prometheus and Grafana to collect and analyze performance metrics.
 - Implement alerting for issue resolution.
 
 <details>
@@ -149,7 +211,7 @@ updateStrategy:
 
 ### Conclusion
 
-Voila! You now have a deployment that is *somewhat* ready for production. Your next step will be to complete the self-assessment and identify any gaps. 
+Voila! You now have a deployment that is *somewhat* ready for production. Your next step will be to complete the self-assessment and identify any gaps.
 
 ### Next Steps: [Production Readiness Self-Assessment](./production-readiness.md)
 
