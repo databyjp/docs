@@ -21,12 +21,18 @@ If you *do* identify gaps within your deployment, be sure to reach out to your S
 - [ ]  Is your application fault-tolerant *without* your control plane?
 - [ ]  Are there automatic node repair or self-healing mechanisms in place?
 - [ ]  Have failover scenarios been tested to validate resilience?
-- [ ]  Are you utilizing Weaviate’s backup capabilities for disaster recovery?
-    - [ ]  How often are these mechanisms tested?
-    - [ ]  Has the ability to recover from a node failure or database corruption been tested?
+- [ ]  Are you utilizing Weaviate's backup capabilities for disaster recovery?
+    - [ ]  Configured incremental backup strategy
+    - [ ]  Defined backup retention policies (e.g., 7 daily, 4 weekly, 6 monthly)
+    - [ ]  Tested backup and restore procedures
+    - [ ]  Validated disaster recovery process
+    - [ ]  Implemented offsite or multi-region backup storage
+- [ ]  How often are these mechanisms tested?
+    - [ ]  Periodic disaster recovery drills
+    - [ ]  Simulated node failure and data recovery scenarios
 - [ ]  Have you thought about the retention period of backups?
-  - [ ]  How do you clean up any out-of-date backups?
-- [ ]  Are rolling updates performed to avoid downtime?
+  - [ ]  Automated backup cleanup process
+  - [ ]  Compliance with data retention requirements
 - [ ]  Are canary deployments implemented to safely test new releases?
 - [ ]  Do you have development or test environments to safely test changes?
 
@@ -42,11 +48,16 @@ If you *do* identify gaps within your deployment, be sure to reach out to your S
 - [ ] Have you tested query performance under load?
   - [ ] Is query performance monitored using Prometheus or Grafana?
 - [ ] Have replica shards been deployed for load balancing and failover support?
+- [ ] Have vector quantization techniques been evaluated to reduce memory and improve performance?
+- [ ] Is there a strategy for managing large vector indexes?
+  - [ ] Estimated vector index memory requirements
+  - [ ] Monitoring vector search latency and recall
+  - [ ] Configured with appropriate HNSW index parameters (maxConnections, ef, efConstruction)
 
 
 ### Resource Management
 
-- [ ]  Have you considered your data’s consumption pattern(s)?
+- [ ]  Have you considered your data's consumption pattern(s)?
     - [ ]  Has your memory allocation been right-sized to match workload demand?
     - [ ]  Has your storage/compute allocation also been right-sized to match workload demand?
     - [ ]  Is there a process to delete old or unused objects?
@@ -55,27 +66,42 @@ If you *do* identify gaps within your deployment, be sure to reach out to your S
     - [ ] Does your storage class support volume expansion so that you can support growth over time?
 - [ ] Is the data within your cluster properly backed up, including the persistent storage?
 - [ ] Is the sharding strategy aligned with the size and access patterns of the dataset?
-- [ ] Is `GOMEMLIMIT` properly configured for memory management?
-  - [ ] Is `GOMEMLIMIT` set based on available system memory to prevent excessive garbage collection pauses?
-- [ ] Have you considered vector quantization techniques to reduce memory requirements?
-
-### Tenant State Management
-
-- [ ] Are you implementing multi-tenancy?
+- [ ] Vector Index Memory Management
+    - [ ] `GOMEMLIMIT` properly configured for memory management
+    - [ ] Estimated total memory requirements for vector indexes
+    - [ ] Considered vector compression or quantization techniques
+- [ ] Garbage Collection Strategies
+    - [ ] Configured `GOGC` to optimize memory usage
+    - [ ] Monitored garbage collection pauses
+    - [ ] Implemented strategies to minimize GC impact on performance
   - [ ] Are there limits or quotas per tenant to avoid noisy neighbor issues?
+  - [ ] Tenant-specific vector index management
 - [ ] Is there a strategy for offloading inactive tenant data?
-
+- [ ] Vector Search Optimization Checklist
+  - [ ] Estimated vector index memory requirements
+  - [ ] HNSW index configured with appropriate maxConnections
+  - [ ] Considered vector quantization techniques
+  - [ ] Monitoring vector search latency and recall
+  - [ ] Implemented tenant-specific vector search performance monitoring
 ### Security
 
 - [ ]  Are the components of your cluster communicating via SSL/TLS and trusted certificates?
-- [ ]  Is the *“principle of least privilege”* being followed?
+- [ ]  Is the *"principle of least privilege"* being followed?
 - [ ]  Are your container security defaults set properly?
 - [ ]  Is access to your cluster strictly limited?
-- [ ]  Has [RBAC](/weaviate/configuration/rbac/index.mdx) been implemented to restrict access?
-- [ ]  Have network policies been implemented to limit pod-to-pod communication?
-- [ ]  Are secrets secured with K8s Secrets or a vault solution?
-- [ ]  Do you have a process for when secrets are exposed, when access is lost to a key or certificate, and when secrets need to be rotated?
-
+- [ ]  RBAC Configuration
+    - [ ]  Implemented granular role-based access control
+    - [ ]  Defined least-privilege roles for different user types
+    - [ ]  Regularly audited and updated RBAC policies
+- [ ]  Network Policy Recommendations
+    - [ ]  Implemented strict network policies to limit pod-to-pod communication
+    - [ ]  Segmented network access based on service requirements
+    - [ ]  Configured ingress and egress rules
+- [ ]  Secret Management
+    - [ ]  Secrets secured with K8s Secrets or a vault solution
+    - [ ]  Implemented secret rotation strategy
+    - [ ]  Defined process for secret exposure or loss
+    - [ ]  Regular key and certificate rotation
 ### Monitoring and Observability
 
 - [ ]  Is logging implemented?
@@ -84,7 +110,7 @@ If you *do* identify gaps within your deployment, be sure to reach out to your S
 - [ ]  Are health and performance metrics being visualized in Grafana?
 - [ ]  Are alerts configured for events?
 
-Evaluate these key areas to build a highly available, resilient, and efficient deployment that will scale to meet your business needs. By ensuring that these self-assessment questions have been addressed, you can proactively identify potential risks and maximize the reliability of your deployment. 
+Evaluate these key areas to build a highly available, resilient, and efficient deployment that will scale to meet your business needs. By ensuring that these self-assessment questions have been addressed, you can proactively identify potential risks and maximize the reliability of your deployment.
 
 ## Questions and feedback
 
