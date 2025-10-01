@@ -11,11 +11,57 @@ For a tutorial on how to use [minikube](https://minikube.sigs.k8s.io/docs/) to d
 
 ## Requirements
 
+### Kubernetes Cluster
 * A recent Kubernetes Cluster (at least version 1.23). If you are in a development environment, consider using the kubernetes cluster that is built into Docker desktop. For more information, see the [Docker documentation](https://docs.docker.com/desktop/kubernetes/).
 * The cluster needs to be able to provision `PersistentVolumes` using Kubernetes' `PersistentVolumeClaims`.
 * A file system that can be mounted read-write by a single node to allow Kubernetes' `ReadWriteOnce` access mode.
 * Helm version v3 or higher. The current Helm chart is version `||site.helm_version||`.
 
+### Memory Requirements
+
+The HNSW index **must** fit in memory. You can estimate memory usage using this formula:
+
+**Memory = 2 × numDimensions × numVectors × 4B**
+
+For example, 100M vectors with 512 dimensions would require:
+512 × 100,000,000 × 4 × 2 ≈ 400GiB
+
+Keep an additional 20% of memory for page cache and other requirements.
+
+#### Strategies to Reduce Memory Usage
+- Use **vector compression** (quantization)
+- **Reduce vector dimensionality** using techniques like PCA
+- **Reduce HNSW maxConnections** while increasing `ef` and `efConstruction`
+
+### CPU Requirements
+
+Estimate CPU requirements using:
+
+**minimumNumberOfCpu = QPS × AverageCPULatencyPerQuery + 6**
+
+Average CPU latency estimates:
+- Pure vector search: ~3-4ms (1M objects)
+- Filtered search: ~10ms (depends on filter complexity)
+- Hybrid search: ~20ms (combines BM25 and vector search)
+- Latency roughly doubles when vector count increases 10-fold
+
+Example: For 100M vectors with hybrid search (~80ms latency) at 200 QPS peak:
+200 × 0.080 + 6 ≈ 22 CPU cores
+
+### Network Requirements
+
+Weaviate requires these ports:
+- **REST API**: 8080 (HTTP)
+- **gRPC API**: 50051 (gRPC/Protocol Buffer)
+- **Gossip Protocol**: 7102 (internal cluster communication)
+- **Data Bind**: 7103 (internal data exchange)
+
+### Storage Requirements
+
+- **SAN-based storage preferred**: EBS, VMDK, etc.
+- **⚠️ Avoid NFS** or NFS-like storage classes
+- Storage class must support `ReadWriteOnce` access mode
+- Persistent Volume provisioning capability required
 ## Weaviate Helm chart
 
 :::note Important: Set the correct Weaviate version
@@ -83,7 +129,49 @@ grpcService:
       protocol: TCP
       port: 50051
   type: LoadBalancer  # ⬅️ Set this to LoadBalancer (from NodePort)
+
+## High Availability Setup
+
+### Multi-Node Cluster Configuration
+
+For production environments, deploy a minimum 3-node cluster:
+
+```yaml
+replicas: 3
+
+# Configure replication factor
+env:
+  REPLICATION_MINIMUM_FACTOR: "3"
 ```
+
+### Pod Anti-Affinity
+
+Ensure pods are distributed across different nodes:
+
+```yaml
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 1
+        podAffinityTerm:
+          topologyKey: "kubernetes.io/hostname"
+          labelSelector:
+            matchExpressions:
+              - key: "app"
+                operator: In
+                values:
+                  - weaviate
+```
+
+### Sharding Strategy
+
+Configure proper sharding for your collections using the client libraries:
+
+```python
+# Example Python configuration
+Configure.sharding(virtual_per_physical=128, desired_count=6)
+```
+
 
 #### Authentication and authorization
 
@@ -135,6 +223,104 @@ import WCDOIDCWarning from '/_includes/wcd-oidc.mdx';
 For further, general documentation on authentication and authorization configuration, see:
 - [Authentication](../configuration/authentication.md)
 - [Authorization](../configuration/authorization.md)
+
+## Performance and Resource Configuration
+
+### Memory Configuration
+
+#### GOMEMLIMIT
+Sets the memory limit for the Go runtime. Keep at least **10 to 20%** of available memory for the Go runtime and other processes.
+
+```yaml
+env:
+  GOMEMLIMIT: "8GiB"  # For a 10GiB memory node
+```
+
+#### LIMIT_RESOURCES
+This setting automatically configures memory usage to **80%** of the total available memory and uses **all but one CPU core**. It overrides any `GOMEMLIMIT` values but respects `GOMAXPROCS` settings.
+
+```yaml
+env:
+  LIMIT_RESOURCES: "true"
+```
+
+#### PERSISTENCE_LSM_ACCESS_STRATEGY
+By default, Weaviate accesses data using `mmap`. While mmap provides memory management benefits, if you experience stalling under heavy memory load, try `pread` instead.
+
+```yaml
+env:
+  PERSISTENCE_LSM_ACCESS_STRATEGY: "mmap"  # or "pread"
+```
+
+#### GOGC
+Controls the garbage collector's target percentage, determining how much memory can grow before triggering a collection cycle.
+
+```yaml
+env:
+  GOGC: "100"  # Default value
+```
+
+### CPU Configuration
+
+#### GOMAXPROCS
+Sets the maximum number of threads for concurrent execution.
+
+```yaml
+env:
+  GOMAXPROCS: "8"  # Match your CPU cores
+```
+
+### Performance Optimization
+
+#### Async Indexing
+For large-scale deployments, enable asynchronous indexing:
+
+```yaml
+env:
+  ASYNC_INDEXING: "true"
+```
+
+#### Advanced Search Features
+For large hybrid or keyword search workloads:
+
+```yaml
+env:
+  USE_BLOCKMAX_WAND: "true"
+  # ACORN HNSW index improves filtering vector search
+```
+
+#### Profiling
+Enable Go profiler for performance monitoring:
+
+```yaml
+env:
+  GO_PROFILING_DISABLE: "false"
+```
+
+### Schema and Query Configuration
+
+#### Schema Management
+For production environments, disable automatic schema creation:
+
+```yaml
+env:
+  AUTOSCHEMA_ENABLED: "false"
+```
+
+#### Logging Configuration
+```yaml
+env:
+  LOG_LEVEL: "info"  # debug, info, warning, error
+  LOG_FORMAT: "json"  # json or text
+```
+
+#### Query Limits
+```yaml
+env:
+  QUERY_DEFAULTS_LIMIT: "10"
+  QUERY_MAXIMUM_RESULTS: "10000"
+  QUERY_SLOW_LOG_ENABLED: "true"  # Enable for performance monitoring
+```
 
 #### Run as non-root user
 
@@ -222,6 +408,70 @@ spec:
 
 For more, general information on running EFS with Fargate, we recommend reading [this AWS blog](https://aws.amazon.com/blogs/containers/running-stateful-workloads-with-amazon-eks-on-aws-fargate-using-amazon-efs/).
 
+## Backup Strategy
+
+### Backup Module Configuration
+
+Configure the appropriate backup module based on your environment:
+
+#### Production Environments
+```yaml
+# For AWS S3
+modules:
+  backup-s3:
+    enabled: true
+    env:
+      BACKUP_S3_BUCKET: "my-weaviate-backups"
+      BACKUP_S3_REGION: "us-east-1"
+
+# For Google Cloud Storage
+modules:
+  backup-gcs:
+    enabled: true
+    env:
+      BACKUP_GCS_BUCKET: "my-weaviate-backups"
+
+# For Azure Blob Storage
+modules:
+  backup-azure:
+    enabled: true
+    env:
+      BACKUP_AZURE_CONTAINER: "my-weaviate-backups"
+```
+
+#### Development and Testing
+```yaml
+modules:
+  backup-filesystem:
+    enabled: true
+    env:
+      BACKUP_FILESYSTEM_PATH: "/tmp/backups"
+```
+
+### Backup Best Practices
+
+#### Backup Schedule Strategy
+Implement a comprehensive backup schedule:
+- **Daily backups**: Retain for 7 days
+- **Weekly backups**: Retain for 4 weeks
+- **Monthly backups**: Retain for 6 months
+
+#### Alternative: Disk Snapshots
+You can also rely on disk-level snapshots:
+- **LVM snapshots**
+- **VMDK snapshots**
+- **EBS snapshots**
+- **Other cloud provider snapshot services**
+
+:::note
+Disk snapshots should be configured outside of Helm charts through your infrastructure management tools.
+:::
+
+#### Recovery Planning
+- **Test recovery procedures** regularly
+- **Document disaster recovery** plans
+- **Validate backup integrity** periodically
+
 ### Using Azure file CSI with Weaviate
 The provisioner `file.csi.azure.com` is **not supported** and will lead to file corruptions. Instead, make sure the storage class defined in values.yaml is from provisioner `disk.csi.azure.com`, for example:
 
@@ -262,4 +512,63 @@ env:
 
 import DocsFeedback from '/_includes/docs-feedback.mdx';
 
-<DocsFeedback/>
+
+## Understanding Weaviate's Data Structure
+
+### The `data` Folder Structure
+
+Weaviate organizes data on disk in a specific structure:
+
+#### Cluster State
+- **`raft/`** - Contains cluster state and schema definitions not yet included in snapshots
+
+#### Per Collection and Shard
+- **`proplength`** - Global statistics used for BM25 scoring
+- **`indexcount`** - Number of documents in the shard
+- **`version`** - Shard version (currently `2` since v1.10.1)
+- **`main.hnsw.commitlog.d/`** - Write-Ahead Log (WAL) containing vectors for search
+- **`lsm/`** - Contains all non-vector indexes
+
+#### LSM Tree Structure
+Within the `lsm/` directory:
+- **`dimensions/`** - Tracks vector dimensions
+- **`objects/`** - Contains complete object data
+- **`property_id`** - Converts document UUID to internal uint64 ID
+- **`property_*/`** - Stores property values for filtering
+- **`property_*_searchable/`** - Contains posting lists for BM25 search
+- **`property_*_rangeable/`** - Contains roaring bitmaps for range queries
+- **`property_*___meta_count`** - Used for cross-reference joins
+- **`vectors`** - Contains vectors for flat index (only if HNSW is disabled)
+
+#### LSM Segment Files
+Each LSM maintains several file types:
+- **`segment-XXXX.bloom`** - Bloom filters for improved query performance
+- **`segment-XXXX.cna`** - Count net additions
+- **`segment-XXXX.wal`** - Write-ahead log for newly added documents
+- **`segment-XXXX.db`** - Main LSM data file
+- **`segment-XXXX.*.tmp`** - Temporary files during creation
+
+:::note
+`XXXX` represents the segment timestamp in the filename.
+:::
+
+### Log-Structured Merge Tree (LSM) Components
+
+Weaviate uses its own LSM implementation optimized for write-heavy workloads:
+
+- **Memtable**: In-memory buffer for new writes (200MB default)
+- **WAL (Write-Ahead Log)**: Ensures durability
+- **SSTable (String Sorted Table)**: Immutable disk structures
+- **Bloom filters**: Optimize read operations
+- **Native Roaring Bitmap** support for efficient filtering
+
+#### Write Path
+1. Write goes to Memtable & WAL on disk
+2. When Memtable is full, flush to segments (*.db files)
+3. Background compaction merges segments continuously
+
+#### Read Path
+1. Check Memtable first
+2. Use Bloom filters to skip segments if key not present
+3. Search through segments until found
+4. Merge results if key exists in multiple levels
