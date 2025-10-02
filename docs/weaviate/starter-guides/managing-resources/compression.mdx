@@ -128,11 +128,15 @@ Starting in v1.22, Weaviate has an optional, [asynchronous indexing](/weaviate/c
 
 Most applications benefit from compression. The cost savings are significant. In [Weaviate Cloud](https://weaviate.io/pricing), for example, compressed collections can be more than 80% cheaper than uncompressed collections.
 
-- For most users with HNSW indexes who want the best combination of simplicity, performance, and recall, **consider 8-bit RQ compression**. RQ provides 4x compression with 98-99% recall and requires no configuration or training. It's ideal for standard use cases with embeddings from providers like OpenAI.
+- **For most users with HNSW indexes who want the best combination of simplicity, performance, and recall, we recommend 8-bit Rotational Quantization (RQ)**. RQ provides:
+  - 4x compression
+  - 98-99% recall
+  - No configuration or training required
+  - Ideal for standard use cases with embeddings from providers like OpenAI
 
 - If you have a small collection that uses a flat index, consider a BQ index. The BQ index is 32 times smaller and much faster than the uncompressed equivalent.
 
-- If you have a very large data set or specialized search needs, consider PQ compression. PQ compression is very configurable, but it requires more expertise to tune well than SQ, RQ, or BQ.
+- For very large data sets or specialized search needs, consider Product Quantization (PQ), which is highly configurable but requires more expertise to tune.
 
 For collections that are small, but that are expected to grow, consider a dynamic index. In addition to setting the dynamic index type, configure the collection to use BQ compression while the index is flat and RQ compression when the collection grows large enough to move from a flat index to an HNSW index.
 
