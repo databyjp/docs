@@ -11,8 +11,9 @@ For a tutorial on how to use [minikube](https://minikube.sigs.k8s.io/docs/) to d
 
 ## Requirements
 
-* A recent Kubernetes Cluster (at least version 1.23). If you are in a development environment, consider using the kubernetes cluster that is built into Docker desktop. For more information, see the [Docker documentation](https://docs.docker.com/desktop/kubernetes/).
 * The cluster needs to be able to provision `PersistentVolumes` using Kubernetes' `PersistentVolumeClaims`.
+* Prefer SAN-based storage like EBS, VMDK, etc. **Avoid NFS or NFS-like storage classes**.
+* Ensure the Kubernetes cluster can create Persistent Volumes with a Storage Class and associated Provisioner.
 * A file system that can be mounted read-write by a single node to allow Kubernetes' `ReadWriteOnce` access mode.
 * Helm version v3 or higher. The current Helm chart is version `||site.helm_version||`.
 
@@ -69,20 +70,71 @@ Local models, such as `text2vec-transformers`, `qna-transformers`, and  `img2vec
 Starting in Helm chart version 17.0.1, constraints on module resources are commented out to improve performance. To constrain resources for specific modules, add the constraints in your `values.yaml` file.
 
 #### gRPC service configuration
+#### gRPC Service Configuration
 
-Starting in Helm chart version 17.0.0, the gRPC service is enabled by default. If you use an older Helm chart, edit your `values.yaml` file to enable gRPC.
-
-Check that the `enabled` field is set to `true` and the `type` field to `LoadBalancer`. These settings allow you to access the [gRPC API](https://weaviate.io/blog/grpc-performance-improvements) from outside the Kubernetes cluster.
+Starting in Helm chart version 17.0.0, the gRPC service is enabled by default. Configure service exposure carefully:
 
 ```yaml
 grpcService:
-  enabled: true  # ⬅️ Make sure this is set to true
+  enabled: true  # Enable gRPC API access
   name: weaviate-grpc
   ports:
     - name: grpc
       protocol: TCP
       port: 50051
-  type: LoadBalancer  # ⬅️ Set this to LoadBalancer (from NodePort)
+  type: LoadBalancer  # Recommended for external access
+```
+
+#### Service Exposure Strategies
+- **LoadBalancer**: Recommended for exposing Weaviate service externally
+- **ExternalName**: Useful for DNS-based service discovery
+- **Ingress**: Provides advanced routing and SSL termination
+
+> **Caution**: External IP and OpenShift routes are not directly covered by Weaviate Helm charts. You may need to configure these manually.
+
+##### Recommended Ports
+- **REST API**: 8080 (HTTP)
+- **gRPC API**: 50051 (gRPC/Protocol Buffer)
+- **Gossip**: 7102 (Internal cluster communication)
+- **Data Bind**: 7103 (Internal data exchange)
+
+When deploying Weaviate in Kubernetes, consider the following configuration parameters for optimal performance:
+
+#### Memory and Resource Limits
+```yaml
+resources:
+  requests:
+    memory: '4Gi'  # Minimum recommended memory request
+  limits:
+    memory: '8Gi'  # Maximum memory limit
+```
+
+#### Performance Optimization
+```yaml
+env:
+  - name: ASYNC_INDEXING
+    value: 'true'  # Enable asynchronous indexing
+  - name: USE_BLOCKMAX_WAND
+    value: 'true'  # Optimize large hybrid search
+  - name: USE_INVERTED_SEARCHABLE
+    value: 'true'  # Improve filtering performance
+```
+
+#### High Availability Configuration
+```yaml
+replicaCount: 3  # Minimum recommended replica count
+replicationFactor: 3  # Ensure data redundancy
+```
+
+#### Performance Considerations
+- **Memory Allocation**: Estimate approximately 6GB per 1M 1024-dimensional vectors
+- **Vector Index Memory**: Ensure your HNSW index can fit entirely in memory
+- **Memory Reduction Strategies**:
+  - Use vector quantization
+  - Reduce vector dimensionality
+  - Adjust `maxConnections` in HNSW index
+
+> **Note**: These are general recommendations. Always test and tune based on your specific workload and infrastructure.
 ```
 
 #### Authentication and authorization

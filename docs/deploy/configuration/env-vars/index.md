@@ -44,13 +44,30 @@ import APITable from '@site/src/components/APITable';
 | `ENABLE_TOKENIZER_KAGOME_JA` | Enable the [`Kagome` tokenizer for Japanese](/weaviate/config-refs/collections.mdx) for use (Experimental as of `v1.28.0`) | `boolean` | `true` |
 | `ENABLE_TOKENIZER_KAGOME_KR` | Enable the [`Kagome` tokenizer for Korean](/weaviate/config-refs/collections.mdx#) for use (Experimental as of `v1.25.7`) | `boolean` | `true` |
 | `GODEBUG` | Controls debugging variables within the runtime. [See official Go docs](https://pkg.go.dev/runtime). | `string - comma-separated list of name=val pairs` | `gctrace=1` |
-| `GOMAXPROCS` | Set the maximum number of threads that can be executing simultaneously. If this value is set, it be respected by `LIMIT_RESOURCES`. | `string - number` | `NUMBER_OF_CPU_CORES` |
-| `GOMEMLIMIT` | Set the memory limit for the Go runtime. A suggested value is between 90-80% of your total memory for Weaviate. The Go runtime tries to make sure that long-lived and temporary memory allocations do not exceed this value by making the garbage collector more aggressive as the memory usage approaches the limit. [Learn more about GOMEMLIMIT](https://weaviate.io/blog/gomemlimit-a-game-changer-for-high-memory-applications). | `string - memory limit in SI units` | `4096MiB` |
+|| `GOMEMLIMIT` | Set the memory limit for the Go runtime. **Recommended: 80-90% of total memory**. The Go runtime tries to ensure that long-lived and temporary memory allocations do not exceed this value by making the garbage collector more aggressive as memory usage approaches the limit.
+
+**Best Practices:**
+- For large vector databases (100M+ vectors), consider setting to `80%` of available memory
+- Helps prevent out-of-memory issues by triggering more aggressive garbage collection
+- [Learn more about GOMEMLIMIT optimizations](https://weaviate.io/blog/gomemlimit-a-game-changer-for-high-memory-applications) | `string - memory limit in SI units` | `4096MiB` |
+|| `GOMAXPROCS` | Set the maximum number of threads that can execute simultaneously.
+
+**Recommendations:**
+- Typically set to the number of CPU cores
+- Can be used to fine-tune concurrent processing for vector search and indexing
+- When used with `LIMIT_RESOURCES`, respects the specified thread count | `string - number` | `NUMBER_OF_CPU_CORES` |
 | `GO_PROFILING_DISABLE` | If `true`, disables Go profiling. Default: `false`. | `boolean` | `false` |
 | `GO_PROFILING_PORT` | Sets the port for the Go profiler. Default: `6060` | `integer` | `6060` |
 | `GRPC_MAX_MESSAGE_SIZE` | Maximum gRPC message size in bytes. (Added in `v1.27.1`) Default: 10MB | `string - number` | `2000000000` |
-| `GRPC_PORT` | The port on which Weaviate's gRPC server listens for incoming requests. Default: `50051` | `string - number` | `50052` |
-| `LIMIT_RESOURCES` | If `true`, Weaviate will automatically attempt to auto-detect and limit the amount of resources (memory & threads) it uses to (0.8 * total memory) and (number of cores-1). It will override any `GOMEMLIMIT` values, however it will respect `GOMAXPROCS` values. | `boolean` | `false` |
+|| `LIMIT_RESOURCES` | Automatically manage and limit resource usage for Weaviate. When enabled, Weaviate will:
+- Automatically detect and limit memory to approximately 80% of total memory
+- Reduce CPU usage to (number of cores - 1)
+- Override `GOMEMLIMIT` values while respecting `GOMAXPROCS`
+
+**Use Cases:**
+- Recommended for shared or constrained environments
+- Provides automatic resource protection
+- Useful for preventing resource contention | `boolean` | `false` |
 | `LOG_FORMAT` | Set the Weaviate logging format <br/><br/>Default: Outputs log data to json. e.g.: `{"action":"startup","level":"debug","msg":"finished initializing modules","time":"2023-04-12T05:07:43Z"}` <br/>`text`: Outputs log data to a string. e.g. `time="2023-04-12T04:54:23Z" level=debug msg="finished initializing modules" action=startup` | `string` |  |
 | `LOG_LEVEL` | Sets the Weaviate logging level. Default: `info`<br/><br/>`panic`: Panic entries only. (new in `v1.24`) <br/>`fatal`: Fatal entries only. (new in `v1.24`)  <br/> `error`: Error entries only. (new in `v1.24`) <br/>`warning`: Warning entries only. (new in `v1.24`) <br/>`info`: General operational entries. <br/> `debug`: Very verbose logging. <br/>`trace`: Even finer-grained informational events than `debug`. | `string` | |
 | `MAXIMUM_ALLOWED_COLLECTIONS_COUNT` | Maximum allowed number of collections in a Weaviate node. A value of `-1` removes the limit. Default: `1000` <br/><br/>Instead of raising the collections count limit, consider [rethinking your architecture](/weaviate/starter-guides/managing-collections/collections-scaling-limits.mdx).<br/>Added in `v1.30`| `string - number` | `20` |
@@ -81,7 +98,10 @@ import APITable from '@site/src/components/APITable';
 | `TOMBSTONE_DELETION_MIN_PER_CYCLE` | Minimum number of tombstones to delete per cleanup cycle. Set this to prevent triggering unnecessary cleanup cycles below a threshold. As an example, set a minimum of 1000000 (1M) for a cluster with 300 million-object shards. Default: 0 (New in `v1.24.15`, `v1.25.2`) | `string - int` | `100000` |
 | `USE_GSE` | Enable the [`GSE` tokenizer](/weaviate/config-refs/collections.mdx) for use. <br/> (The same as `ENABLE_TOKENIZER_GSE`. We recommend using `ENABLE_TOKENIZER_GSE` for consistency in naming with other optional tokenizers.) | `boolean` | `true` |
 | `USE_INVERTED_SEARCHABLE` | Store searchable properties using a more efficient in-disk format, designed for the BlockMax WAND algorithm. Set as `true` together with `USE_BLOCKMAX_WAND` to enable BlockMax WAND at query time. <br/><br/>Added in `v1.28` default: `false` <br/> From `v1.30` default: `true` <br/><Link to="/weaviate/concepts/indexing/inverted-index#blockmax-wand-algorithm">Read more</Link> | `boolean` | `true` |
-| `USE_BLOCKMAX_WAND` | Use BlockMax WAND algorithm for BM25 and hybrid searches. Enable it together with `USE_INVERTED_SEARCHABLE` to get the performance benefits. <br/><br/>Added in `v1.28` default: `false` <br/> From `v1.30` default: `true` <br/><Link to="/weaviate/concepts/indexing/inverted-index#blockmax-wand-algorithm">Read more</Link> | `boolean` | `true` |
+|| `DEFAULT_QUANTIZATION` | Default quantization technique for vectors - can be overridden by the quantization method specified in the collection definition. Helps reduce memory footprint for vector storage. Available values: `rq-8`, `rq-1`, `pq`, `bq`, `sq`, `none`. | `string` | `rq-8` |
+|| `ASYNC_INDEXING` | Enable asynchronous vector index creation, which can significantly improve performance during large data imports by creating vector indexes in the background. (Recommended for large-scale data ingestion) | `boolean` | `false` |
+|| `USE_BLOCKMAX_WAND` | Enable BlockMax WAND algorithm for more efficient BM25 and hybrid searches. Use in conjunction with `USE_INVERTED_SEARCHABLE` to get full performance benefits. | `boolean` | `true` |
+|| `USE_INVERTED_SEARCHABLE` | Use a more efficient on-disk format for searchable properties, designed to work with BlockMax WAND algorithm. Improves search performance and index efficiency. | `boolean` | `true` |
 
 ```mdx-code-block
 </APITable>

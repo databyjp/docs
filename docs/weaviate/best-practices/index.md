@@ -102,7 +102,7 @@ If you have a large number of vectors, consider using vector quantization to red
 ![Overview of quantization schemes](../../../_includes/images/concepts/quantization_overview_light.png#gh-light-mode-only "Overview of quantization schemes")
 ![Overview of quantization schemes](../../../_includes/images/concepts/quantization_overview_dark.png#gh-dark-mode-only "Overview of quantization schemes")
 
-For HNSW indexes, we suggest enabling [rotational quantization (RQ)](../configuration/compression/rq-compression.md) as a starting point. It provides significant memory usage benefits and almost no loss in query accuracy. 
+For HNSW indexes, we suggest enabling [rotational quantization (RQ)](../configuration/compression/rq-compression.md) as a starting point. It provides significant memory usage benefits and almost no loss in query accuracy.
 
 import CompressionByDefault from '/_includes/compression-by-default.mdx';
 
@@ -128,25 +128,40 @@ Set `DISK_USE_WARNING_PERCENTAGE` and `DISK_USE_READONLY_PERCENTAGE` to adjust t
 
 ### Plan memory allocation
 
-When running Weaviate, its memory footprint is a common bottleneck. As a rule of thumb, you can expect to need:
+When running Weaviate, its memory footprint is a common bottleneck. Understanding memory allocation strategies is crucial for optimal performance.
 
-- 6GB of memory for 1 million, 1024-dimensional vectors
-- 1.5GB of memory for 1 million, 256-dimensional vectors
-- 2GB of memory 1 million, 1024-dimensional vectors with quantization enabled
+#### Memory Allocation Strategies
+
+##### Vector Index Memory Planning
+- Estimate memory requirements based on vector dimensions
+  - 6GB for 1 million, 1024-dimensional vectors
+  - 1.5GB for 1 million, 256-dimensional vectors
+  - 2GB for 1 million, 1024-dimensional vectors with quantization
+
+##### Memory Allocation Best Practices
+- Keep at least 10-20% memory reserved for Go runtime and system processes
+- Use `GOMEMLIMIT` to set precise memory limits
+- Configure `GOMAXPROCS` for optimal thread management
+- Leverage `LIMIT_RESOURCES` to automatically manage memory and CPU usage
+
+##### Memory Optimization Techniques
+- Enable vector quantization to reduce memory footprint
+- Use dynamic vector indexing for efficient memory utilization
+- Monitor memory usage with tools like `pprof` and Prometheus
 
 <details>
-  <summary>How did we come up with this figure?</summary>
+  <summary>Detailed Memory Calculation</summary>
 
-Without quantization, each vector is stored as an n-dimensional float. For 1024-dimensional vectors, this means:
-
+Without quantization, each vector is stored as an n-dimensional float:
 - 4 bytes per float * 1024 dimensions * 1M vectors = 4GB
+- Add overhead for index structure and system processes
 
-We add some overhead for the index structure, and additional overheads, which brings us to the approximate figure of 6GB.
-
+Quantization can significantly reduce this memory requirement.
 </details>
 
 :::tip Further resources
 - [Concepts: Resource planning](../concepts/resources.md)
+- [Configuration: Memory Management](/deploy/configuration/memory-management.md)
 :::
 
 ### How to quickly check the memory usage
@@ -292,18 +307,41 @@ with collection.batch.fixed_size(batch_size=200) as batch:
 - [How-to: Batch import data](../manage-objects/import.mdx)
 :::
 
-### Minimize costs by offloading inactive tenants
+### Minimize Costs and Optimize Resource Utilization
 
-If you are using multi-tenancy, and have tenants that are not being queried frequently, consider offloading them to cold (cloud) storage.
+#### Resource Optimization Strategies
+- **Vector Compression**
+  - Use vector quantization to reduce memory footprint
+  - Implement rotational quantization (RQ) for HNSW indexes
+  - Reduce vector dimensionality using techniques like PCA
 
-![Storage Tiers](../starter-guides/managing-resources/img/storage-tiers.jpg)
+- **Dynamic Indexing**
+  - Utilize `dynamic` vector indexes for flexible scaling
+  - Automatically switch from `flat` to `hnsw` indexes as data grows
+  - Optimize memory usage for multi-tenant setups
 
-Offloaded tenants are stored in a cloud storage bucket, and can be reloaded into Weaviate when needed. This can significantly reduce the memory and disk usage of Weaviate, and thus reduce costs.
+- **Replication and Sharding**
+  - Configure replication factor (odd number recommended)
+  - Implement efficient sharding strategies
+    ```python
+    Configure.sharding(
+        virtual_per_physical=128,
+        desired_count=6
+    )
+    ```
 
-When the tenant is likely to be used again (e.g. when a user logs in), it can be reloaded into Weaviate, and will be available for querying again.
+- **Tenant Management**
+  - Offload inactive tenants to cold storage
+  - Reduce memory and disk usage
+  - Reload tenants on-demand
 
-:::info Available in open-source Weaviate only
-At the moment, offloading tenants is only available in the open-source version of Weaviate. We plan to make this feature available in Weaviate Cloud.
+#### Cost-Effective Deployment
+- Use storage tiers for tenant data management
+- Monitor and adjust resource allocation
+- Implement incremental backup strategies
+
+:::info Tenant Offloading
+Currently available in open-source Weaviate. Future support planned for Weaviate Cloud.
 :::
 
 :::tip Further resources
@@ -317,7 +355,52 @@ At the moment, offloading tenants is only available in the open-source version o
 
 ### Consider using a reranker
 
-### Effective hybrid search strategies -->
+## Performance Optimization Techniques
+
+### Vector Search Performance
+- **Hybrid Search Optimization**
+  - Use BlockMax WAND for large-scale keyword and vector hybrid searches
+  - Configure `USE_BLOCKMAX_WAND` for efficient hybrid search
+  - Implement intelligent filtering strategies
+
+- **Indexing Strategies**
+  - Enable async indexing for large data imports
+    ```yaml
+    ASYNC_INDEXING: true
+    ```
+  - Choose appropriate vector index types:
+    - `flat`: For small collections (<100,000 vectors)
+    - `dynamic`: Automatically switches from flat to HNSW
+    - `hnsw`: Optimal for large, complex vector datasets
+
+### Memory and Performance Tuning
+- **Vector Index Memory Management**
+  - Monitor vector index memory consumption
+  - Use rotational quantization (RQ) to reduce memory footprint
+  - Set appropriate memory limits and requests
+
+- **Performance Profiling**
+  - Use `GO_PROFILING_DISABLE` to enable Go profiler
+  - Analyze performance bottlenecks
+  - Adjust `ACORN` HNSW index settings
+
+### Query Optimization
+- Set query defaults and limits
+  ```yaml
+  QUERY_DEFAULTS_LIMIT: 10
+  QUERY_MAXIMUM_RESULTS: 10,000
+  QUERY_SLOW_LOG_ENABLED: false
+  ```
+
+- Configure efficient shard loading
+  ```yaml
+  DISABLE_LAZY_LOAD_SHARDS: "true"  # For single-tenant collections
+  ```
+
+:::tip Performance Monitoring
+- Use Prometheus and Grafana for comprehensive monitoring
+- Regularly profile and tune your Weaviate deployment
+:::
 
 ## Application design and integration
 
