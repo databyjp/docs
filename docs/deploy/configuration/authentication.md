@@ -75,7 +75,7 @@ API key authentication is a simple and effective way to authenticate users. Each
 
 ### API keys: Database users
 
-When [creating database users programmatically](/weaviate/configuration/rbac/manage-users.mdx#create-a-user), each user is assigned a distinct API key at creation time. These API keys can also be [regenerated (rotated)](/weaviate/configuration/rbac/manage-users.mdx#rotate-user-api-key). 
+When [creating database users programmatically](/weaviate/configuration/rbac/manage-users.mdx#create-a-user), each user is assigned a distinct API key at creation time. These API keys can also be [regenerated (rotated)](/weaviate/configuration/rbac/manage-users.mdx#rotate-user-api-key).
 
 ### API keys: Docker
 
@@ -312,6 +312,73 @@ Configuring the OIDC token issuer is outside the scope of this document, but her
 
 - If you need a more customizable setup you can use commercial OIDC providers like [Okta](https://www.okta.com/).
 - As another alternative, you can run your own OIDC token issuer server, which may be the most complex but also configurable solution. Popular open-source solutions include Java-based [Keycloak](https://www.keycloak.org/) and Golang-based [dex](https://github.com/dexidp/dex).
+
+## OIDC Provider Configuration Best Practices
+
+When configuring OIDC with Weaviate, consider the following guidance for different identity providers:
+
+### Okta Configuration
+- Use client credentials or authorization code flow
+- Configure audience and issuer carefully
+- Example configuration:
+```yaml
+authentication:
+  oidc:
+    issuer: 'https://your-okta-domain.okta.com/oauth2/default'
+    client_id: 'your-client-id'
+    scopes: ['openid', 'profile', 'email']
+```
+
+### Azure AD Configuration
+- Use hybrid flow or client credentials
+- Handle multi-tenant scenarios
+- Example configuration:
+```yaml
+authentication:
+  oidc:
+    issuer: 'https://login.microsoftonline.com/{tenant-id}/v2.0'
+    client_id: 'your-azure-client-id'
+    scopes: ['openid', 'profile']
+```
+
+### Keycloak Configuration
+- Support multiple authentication flows
+- Configure realm and client settings carefully
+- Example configuration:
+```yaml
+authentication:
+  oidc:
+    issuer: 'https://your-keycloak-server/auth/realms/your-realm'
+    client_id: 'weaviate-client'
+    scopes: ['openid', 'roles']
+```
+
+:::tip Edge Case Handling
+- Always implement proper error handling for token validation
+- Have fallback authentication mechanisms
+- Log authentication attempts securely without exposing sensitive information
+:::
+
+### Token Validation Strategies
+
+Implement robust token validation by:
+- Verifying token signature
+- Checking token expiration
+- Validating audience and issuer claims
+- Ensuring token has not been revoked
+
+Example validation pseudocode:
+```python
+def validate_token(token):
+    if not verify_signature(token):
+        raise AuthenticationError('Invalid token signature')
+
+    if is_token_expired(token):
+        raise AuthenticationError('Token has expired')
+
+    if not validate_audience(token):
+        raise AuthenticationError('Token not intended for this service')
+```
 
 :::info
 By default, Weaviate validates that the token includes a specified client id in the audience claim. If your token issuer does not support this feature, you can turn it off as outlined in the configuration section below.
