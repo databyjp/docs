@@ -43,11 +43,33 @@ Reader or Generator modules can be used on top of a Vectorizer module. These mod
 
 ### Other modules
 
-These include those such as `gcs-backup` or `text-spellcheck`.
+These include modules with specialized functionalities such as:
+
+#### Backup Modules
+
+Backup modules provide critical data protection and disaster recovery capabilities for Weaviate. They offer:
+
+- **External Storage Integration**: Support for various storage backends like filesystem, cloud storage (AWS S3, Google Cloud Storage, Azure Blob)
+- **Flexible Backup Strategies**:
+  - Full backups capturing complete system state
+  - Upcoming incremental backup options for efficient data protection
+- **Architecture Flexibility**:
+  - Can be configured independently of other modules
+  - Enable data portability and system resilience
+
+Key backup module characteristics:
+- Support multiple storage backends
+- Ensure point-in-time data recovery
+- Minimal performance impact during backup operations
 
 ## Dependencies
 
-Modules can be dependent on other modules to be present. For example, to use the [`qna-transformers`](../modules/qna-transformers.md) module, *exactly one* text vectorization module is required.
+Modules can be dependent on other modules to be present. For example:
+- The [`qna-transformers`](../modules/qna-transformers.md) module requires *exactly one* text vectorization module
+- Backup modules typically operate independently but may have configuration dependencies
+  - Require appropriate credentials for external storage backends
+  - May interact with system configuration modules
+- Backup modules can coexist with other modules without direct functional dependencies
 
 ## Weaviate without modules
 
@@ -55,7 +77,17 @@ Weaviate can also be used without any modules, as pure vector native database an
 
 ## Custom modules
 
-It is possible for anyone to create a custom module for use with Weaviate. Click [here](../modules/custom-modules.md) to see how you can create and use your own modules.
+
+### Upcoming Features
+
+#### Incremental Backups
+
+Weaviate is developing an incremental backup feature that will:
+- Save only changed data since the last backup
+- Reduce backup storage requirements
+- Minimize backup duration for large datasets
+
+> **Note**: Incremental backups are planned for future releases and will provide more efficient backup strategies.
 
 ## Further resources
 

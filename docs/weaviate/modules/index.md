@@ -79,26 +79,77 @@ Backup and restore operations in Weaviate are facilitated by the use of backup p
 
 These are interchangeable storage backends which exist either internally or externally.
 
-### External provider
+### External Provider
 
-External backup providers coordinate the storage and retrieval of backed-up Weaviate data with external storage services.
+External backup providers are critical for robust data protection and disaster recovery in production environments. They offer several key advantages:
 
-This type of provider is ideal for production environments. This is because storing the backup data outside of a Weaviate instance decouples the availability of the backup from the Weaviate instance itself. In the event of an unreachable node, the backup is still available.
+- **Data Durability**: By storing backup data outside the Weaviate instance, you ensure that your data remains safe even if the primary system fails.
+- **High Availability**: Decoupling backups from the main instance means you can recover data regardless of the primary system's state.
+- **Scalability**: Essential for multi-node Weaviate clusters, which require external storage to maintain backup integrity.
 
-Additionally, multi-node Weaviate clusters _require_ the use of an external provider. Storing a multi-node backup on internally on a single node presents several issues, like significantly reducing the durability and availability of the backup, and is not supported.
+#### Supported External Providers
 
-The supported external backup providers are:
-- [S3](/deploy/configuration/backups.md#s3-aws-or-s3-compatible)
-- [GCS](/deploy/configuration/backups.md#gcs-google-cloud-storage)
-- [Azure](/deploy/configuration/backups.md#azure-storage)
+Weaviate currently supports the following external backup storage backends:
+
+- **Amazon S3**: Provides scalable object storage with broad compatibility
+  - Supports AWS S3 and S3-compatible storage services
+  - Ideal for organizations using AWS infrastructure
+
+- **Google Cloud Storage (GCS)**: Google's cloud storage solution
+  - Offers seamless integration with Google Cloud Platform
+  - Provides robust data durability and global accessibility
+
+- **Azure Blob Storage**: Microsoft's object storage solution
+  - Designed for enterprises using Azure cloud services
+  - Supports various redundancy and access tiers
+
+#### Multi-Node Cluster Requirements
+
+For multi-node Weaviate clusters, external providers are not just recommended—they are **mandatory**. Internal or single-node backup methods are incompatible with distributed cluster architectures.
 
 Thanks to the extensibility of the module system, new providers can be readily added. If you are interested in an external provider other than the ones listed above, feel free to reach out via our [forum](https://forum.weaviate.io/), or open an issue on [GitHub](https://github.com/weaviate/weaviate).
+### Backup Module Characteristics
 
-### Internal provider
+#### Storage Backend Compatibility
+- Supports multiple storage types: object storage, cloud storage, and local filesystem
+- Each provider implements a standardized backup interface for consistent operations
 
-Internal providers coordinate the storage and retrieval of backed-up Weaviate data within a Weaviate instance. This type of provider is intended for developmental or experimental use, and is not recommended for production. Internal Providers are not compatible for multi-node backups, which require the use of an external provider.
+#### Configuration Requirements
+- Backup modules are configured through environment variables
+- Requires proper credentials and access permissions for external storage
+- Configuration includes backup ID, storage backend, and optional metadata
 
-As of Weaviate `v1.16`, the only supported internal backup provider is the [filesystem](/deploy/configuration/backups.md#filesystem) provider.
+#### Backup Compatibility
+- **Single-Node**: Supports both internal (filesystem) and external providers
+- **Multi-Node**: **Requires external provider** (S3, GCS, Azure)
+- Backups are tied to specific node configurations and cannot be restored across different cluster setups
+
+#### Backup Limitations
+- Backups include only active tenants
+- LSM Compactions are temporarily paused during backup
+- Incomplete backups cannot be resumed and must be restarted
+
+### Internal Provider
+
+Internal backup providers store and retrieve backed-up Weaviate data within the same Weaviate instance. They are designed strictly for development, testing, and experimental purposes.
+
+#### Filesystem Provider
+- As of Weaviate `v1.16`, the filesystem provider is the only supported internal backup method
+- Stores backup data on the local disk of the Weaviate instance
+
+#### Key Limitations
+- **Not Recommended for Production**: Lacks the reliability and durability of external providers
+- **Single-Node Only**: Incompatible with multi-node cluster configurations
+- **High Risk**: Backup data is stored on the same system, increasing potential for data loss
+
+**Best Practice**: Always use external providers for production environments to ensure data safety and recoverability.
+### Upcoming Features
+
+#### Incremental Backups
+- **Coming Soon**: Incremental backup capability
+- Will allow backing up only changed data since the last backup
+- Reduces backup time and storage requirements
+- Stay tuned to Weaviate release notes for availability
 
 ## Offloading Modules
 

@@ -606,6 +606,17 @@ These values are available under the `backups` key in the `values.yaml` file. Re
 
 ## Technical Considerations
 
+### Why Backups are Critical
+
+Backups are essential for several key reasons:
+
+- **Prevent Data Loss**: Protect against accidental deletions, configuration errors, or human mistakes that could compromise your data.
+- **Disaster Recovery**: Enable quick restoration of your vector database in case of unexpected failures, ensuring minimal downtime.
+- **Compliance and Governance**: Maintain data integrity and meet regulatory requirements by having reliable backup and recovery mechanisms.
+- **Business Continuity**: Ensure your operations can quickly recover from potential data disruptions.
+- **Flexible Migration**: Easily migrate data between different environments, cloud providers, or infrastructure setups.
+
+
 ### Read & Write requests while a backup is running
 
 The backup process is designed to be minimally invasive to a running setup. Even on very large setups, where terabytes of data need to be copied, Weaviate stays available during backup. It even accepts write requests while a backup process is running. This sections explains how backups work under the hood and why Weaviate can safely accept writes while a backup is copied.
@@ -622,7 +633,31 @@ Weaviate's Backup implementation makes use of the above properties in the follow
 2. Now that the memtables are flushed, there is a guarantee: All data that should be part of the backup is present in the existing disk segments. Any data that will be imported after the backup request ends up in new disk segments. The backup references a list of immutable files.
 3. To prevent a compaction process from changing the files on disk while they are being copied, compactions are temporarily paused until all files have been copied. They are automatically resumed right after.
 
-This way the backup process can guarantee that the files that are transferred to the remote backend are immutable (and thus safe to copy) even with new writes coming in. Even if it takes minutes or hours to backup a very large setup, Weaviate stays available without any user impact while the backup process is running.
+
+### Backup Process Details
+
+#### LSM Compactions During Backup
+
+During the backup process, LSM (Log-Structured Merge) Compactions are temporarily paused to ensure data integrity:
+
+- Compaction processes are stopped until all backup files have been copied
+- This prevents modifications to disk segments during the backup
+- Compactions are automatically resumed after backup completion
+
+#### Multi-Tenancy Considerations
+
+When creating backups in multi-tenant environments:
+
+- Only `active` tenants are included in the backup
+- `Inactive` or `offloaded` tenants are not backed up
+- Ensure all required tenants are activated before creating a backup
+
+#### Node Configuration Compatibility
+
+Backups are tied to specific node configurations:
+
+- Backups can only be restored to instances with identical node count and configuration
+- You cannot restore a backup from a 3-node cluster to a single-node cluster
 
 It is not just safe - but even recommended - to create backups on live production instances while they are serving user requests.
 
@@ -645,7 +680,17 @@ For example, consider the following situation: You would like to do a load test 
 - Single node backup is available starting in Weaviate `v1.15`. Multi-node backups is available starting in `v1.16`.
 - In some cases, backups can take a long time, or get "stuck", causing Weaviate to be unresponsive. If this happens, you can [cancel the backup](#cancel-backup) and try again.
 - If a backup module is misconfigured, such as having an invalid backup path, it can cause Weaviate to not start. Review the system logs for any errors.
-- RBAC roles and users are not restored by default. You need to enable them manually through the configuration properties when [restoring a backup](#restore-backup).
+
+## Best Practices for Backups
+
+### Backup Management Recommendations
+
+- **Automated Scheduling**: Set up regular, automated backup intervals to ensure consistent data protection
+- **Secure Storage**: Store backups in secure, redundant locations with appropriate access controls
+- **Large System Snapshots**: For extensive systems, rely on File System snapshots for comprehensive backups
+- **Logging and Monitoring**: Maintain detailed logs of backup operations for auditing and troubleshooting
+- **Backup Verification**: Periodically test backup restoration to confirm backup integrity
+- **Multi-Location Backups**: Consider storing backups across multiple geographic locations for added resilience
 
 ## Related pages
 - <SkipLink href="/weaviate/api/rest#tag/backups">References: REST API: Backups</SkipLink>
