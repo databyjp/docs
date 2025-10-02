@@ -22,7 +22,18 @@ Weaviate's Backup feature is designed to work natively with cloud technology. Mo
 * Backup and Restore between different storage providers
 * Single-command backup and restore
 * Choice of backing up an entire instance, or selected collections only
-* Easy migration to new environments
+
+## Why Backup Weaviate?
+
+Backups are critical for ensuring the safety and continuity of your vector database. Key benefits include:
+
+✅ **Prevents Data Loss**: Protect against accidental deletions or system failures
+
+✅ **Enables Disaster Recovery & Compliance**: Quickly restore systems and meet regulatory requirements
+
+✅ **Ensures Business Continuity**: Minimize downtime and data interruption
+
+✅ **Easy Migration**: Seamlessly transfer data between different environments and cloud providers
 
 :::caution Important backup considerations
 
@@ -110,15 +121,26 @@ Note that local backups are not suitable for production environments. For produc
 The following sections provide more details on how to configure and use backups in Weaviate.
 
 ## Configuration
+Weaviate supports multiple backup methods:
 
-Weaviate supports four backup storage options:
+1. **Full Backup**
+   - Captures all data, objects, and metadata
+   - Complete snapshot of your entire database
 
-| Provider | Module Name | Best For | Multi-Node Support |
-|----------|------------|-----------|-------------------|
-| AWS S3 | `backup-s3` | Production deployments, AWS environments | Yes |
-| Google Cloud Storage | `backup-gcs` | Production deployments, GCP environments | Yes |
-| Azure Storage | `backup-azure` | Production deployments, Azure environments | Yes |
-| Local Filesystem | `backup-filesystem` | Development, testing, single-node setups | No |
+2. **Incremental Backup** *(Coming Soon)*
+   - Will save only changed data
+   - Reduces backup time and storage requirements
+
+## Backup Storage Backends
+
+Weaviate supports the following backup providers:
+
+|| Provider | Module Name | Best For | Multi-Node Support |
+||----------|------------|-----------|-------------------|
+|| Local Filesystem | `backup-filesystem` | Development, testing, single-node setups | No |
+|| AWS S3 | `backup-s3` | Production deployments, AWS environments | Yes |
+|| Google Cloud Storage | `backup-gcs` | Production deployments, GCP environments | Yes |
+|| Azure Storage | `backup-azure` | Production deployments, Azure environments | Yes |
 
 To use any provider:
 1. Enable the module
@@ -624,7 +646,18 @@ Weaviate's Backup implementation makes use of the above properties in the follow
 
 This way the backup process can guarantee that the files that are transferred to the remote backend are immutable (and thus safe to copy) even with new writes coming in. Even if it takes minutes or hours to backup a very large setup, Weaviate stays available without any user impact while the backup process is running.
 
-It is not just safe - but even recommended - to create backups on live production instances while they are serving user requests.
+
+### Important Backup Notes
+
+#### Multi-tenancy and Active Tenants
+- Backups will only include **active tenants**
+- `Inactive` or `offloaded` tenants in multi-tenant collections are not backed up
+
+#### Backup Process Characteristics
+- LSM Compactions are **temporarily paused** until all files have been copied
+- Backups are **tied to specific node configurations**
+  - You cannot restore a backup from a 3-node cluster to a single-node cluster
+- If a backup fails during the process, **it cannot be resumed** and must start from scratch
 
 ### Async nature of the Backup API
 
@@ -640,12 +673,41 @@ The flexibility around backup providers opens up new use cases. Besides using th
 
 For example, consider the following situation: You would like to do a load test on production data. If you would do the load test in production it might affect users. An easy way to get meaningful results without affecting uses it to duplicate your entire environment. Once the new production-like "loadtest" environment is up, create a backup from your production environment and restore it into your "loadtest" environment. This even works if the production environment is running on a completely different cloud provider than the new environment.
 
+## Disk Snapshots: An Alternative Backup Method
+
+### What are Disk Snapshots?
+Disk snapshots provide a point-in-time copy of the entire storage volume, ensuring a comprehensive backup of your system.
+
+### Creating a Disk Snapshot
+1. **Create a snapshot** using your cloud provider or disk management tool
+2. **Store the snapshot** in a secure location
+3. **Use the snapshot** to restore a new instance if needed
+
+### Advantages
+- Full system backup including configurations
+- Captures entire system state
+- Useful for complete system recovery
+
+### Best Practices
+- Regularly schedule disk snapshots
+- Store snapshots in redundant and secure storage
+- Test restoration process periodically
 ## Troubleshooting and notes
 
-- Single node backup is available starting in Weaviate `v1.15`. Multi-node backups is available starting in `v1.16`.
-- In some cases, backups can take a long time, or get "stuck", causing Weaviate to be unresponsive. If this happens, you can [cancel the backup](#cancel-backup) and try again.
-- If a backup module is misconfigured, such as having an invalid backup path, it can cause Weaviate to not start. Review the system logs for any errors.
-- RBAC roles and users are not restored by default. You need to enable them manually through the configuration properties when [restoring a backup](#restore-backup).
+## Best Practices for Backups
+
+### Backup Strategy
+- 🔁 **Automate** backups on a regular schedule
+- ✅ Store backups in secure & redundant locations
+- 🔍 For large systems, use File System snapshots
+- 📜 Maintain comprehensive logs of backup operations
+
+### Additional Considerations
+- Single node backup is available starting in Weaviate `v1.15`
+- Multi-node backups available starting in `v1.16`
+- In some cases, backups can take a long time or get "stuck"
+- If a backup module is misconfigured, review system logs
+- RBAC roles and users are not restored by default
 
 ## Related pages
 - <SkipLink href="/weaviate/api/rest#tag/backups">References: REST API: Backups</SkipLink>
