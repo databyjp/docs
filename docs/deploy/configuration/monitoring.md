@@ -29,7 +29,21 @@ variable:
 
 ```sh
 PROMETHEUS_MONITORING_PORT=3456
-```
+
+## Resource Starvation and Performance Impact
+
+When Weaviate experiences resource constraints, several critical issues can occur:
+
+### Disk Usage
+- Shards automatically switch to Read Only when 90% of disk space is used (configurable via `DISK_USE_READONLY_PERCENTAGE`)
+- Disk I/O saturation leads to significant increases in read and write request latency
+
+### Memory Constraints
+- Pods may encounter Out of Memory (OOM) errors, potentially causing crashes in an infinite loop
+
+### CPU Limitations
+- Significant increases in read and write request latency
+- Potential performance degradation across the system
 
 ### Scrape metrics from Weaviate
 
@@ -133,6 +147,24 @@ to obtain the metric for the entire Weaviate instance.
 | `weaviate_usage_{gcs\|s3}_resource_count` | Number of resources tracked by module | `resource_type`: collections/shards/backups | `Gauge` |
 | `weaviate_usage_{gcs\|s3}_uploaded_file_size_bytes` | Size of the uploaded usage file in bytes | NA | `Gauge` |
 
+### Key Metrics to Monitor
+
+When monitoring Weaviate, focus on these critical metrics:
+
+#### Performance Metrics
+- **CPU Usage**: `container_cpu_usage_seconds_total`
+- **Memory Usage**:
+  - `go_memstats_heap_inuse_bytes`
+  - `container_memory_working_set_bytes`
+- **Disk I/O**:
+  - `container_fs_writes_bytes_total`
+  - `container_fs_read_bytes_total`
+
+#### Query and Operation Metrics
+- **Query Performance**: `queries_durations_ms_bucket`
+- **Batch Operations**: `batch_durations_ms`
+- **Object Tracking**: `object_count`
+- **Tenant States**: `weaviate_schema_shards`
 
 Extending Weaviate with new metrics is very easy. To suggest a new metric, see the [contributor guide](/contributor-guide).
 
@@ -156,9 +188,64 @@ your uses perfectly:
 | [Vector Index](https://github.com/weaviate/weaviate/blob/master/tools/dev/grafana/dashboards/vectorindex.json)                | Visualize the current state, as well as operations on the HNSW vector index                                             | ![Vector Index](./img/weaviate-sample-dashboard-vector.png 'Vector Index')                                         |
 | [LSM Stores](https://github.com/weaviate/weaviate/blob/master/tools/dev/grafana/dashboards/lsm.json)                          | Get insights into the internals (including segments) of the various LSM stores within Weaviate                          | ![LSM Store](./img/weaviate-sample-dashboard-lsm.png 'LSM Store')                                                  |
 | [Startup](https://github.com/weaviate/weaviate/blob/master/tools/dev/grafana/dashboards/startup.json)                         | Visualize the startup process, including recovery operations                                                            | ![Startup](./img/weaviate-sample-dashboard-startup.png 'Vector Index')                                             |
-| [Usage](https://github.com/weaviate/weaviate/blob/master/tools/dev/grafana/dashboards/usage.json)                             | Obtain usage metrics, such as number of objects imported, etc.                                                          | ![Usage](./img/weaviate-sample-dashboard-usage.png 'Usage')                                                        |
-| [Aysnc index queue](https://github.com/weaviate/weaviate/blob/main/tools/dev/grafana/dashboards/index_queue.json)             | Observe index queue activity                                                                                            | ![Async index queue](./img/weaviate-sample-dashboard-async-queue.png 'Async index queue')                          |
+### Best Practices for Monitoring
+- Implement comprehensive dashboards and alerts
+- Regularly review and update alert thresholds
+- Adapt dashboards to your specific use case
+- Use notifications wisely to avoid false positives
 
+### Recommended Alerts
+
+```yaml
+groups:
+  - name: weaviate-alerts
+    rules:
+      - alert: HighCPUUsage
+        expr: rate(process_cpu_seconds_total[5m]) > 0.9
+        for: 2m
+        labels:
+          severity: high
+        annotations:
+          summary: "High CPU Usage on {{ $labels.instance }}"
+          description: "CPU usage has exceeded 90% for 2 minutes"
+
+      - alert: MemoryLowWarning
+        expr: sum by (pod) (go_memstats_heap_inuse_bytes / kube_pod_container_resource_limits) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High Memory Usage on {{ $labels.pod }}"
+          description: "Memory usage is above 80% of resource limits"
+```
+
+## Troubleshooting and Performance Profiling
+
+### Slow Query Logging
+Use the following environment variables to trace slow queries:
+- `QUERY_SLOW_LOG_ENABLED=true`
+- `QUERY_SLOW_LOG_THRESHOLD=<duration>`
+
+Example log output:
+```
+level=warning msg="Slow query detected (0s)"
+query=ObjectSearch shard=multitenant_tenantA
+took="61.917µs"
+```
+
+### Go Profiling
+Enable profiling to diagnose resource usage:
+- `GO_PROFILING_DISABLE=false`
+- `GO_PROFILING_PORT=6060`
+
+Example profiling commands:
+```bash
+# CPU Profiling
+go tool pprof http://localhost:6060/debug/pprof/profile?seconds=30
+
+# Memory Profiling
+go tool pprof -http=:6061 http://localhost:6060/debug/pprof/heap
+```
 ## `nodes` API Endpoint
 
 To get collection details programmatically, use the [`nodes`](/deploy/configuration/nodes.md) REST endpoint.
