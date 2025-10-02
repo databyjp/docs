@@ -253,6 +253,30 @@ The Paul Krugman `Author` object adds a new property, `writesFor`, to capture th
 
 The value of the `beacon` sub-property is the `id` value from the New York Times `Publication` object.
 
+
+
+### Performance Considerations for Cross-References
+
+Cross-references provide flexibility in data modeling, but they come with performance trade-offs:
+
+#### Query Performance
+- Queries involving cross-references can be significantly slower
+- Performance degrades with:
+  - Multiple levels of cross-references
+  - Complex filtering on cross-referenced objects
+  - Large-scale data models
+
+#### Best Practices
+- Limit cross-reference depth to a single level
+- Consider denormalization for read-heavy workloads
+- Use batch operations when creating references
+- Plan your data model carefully before implementation
+
+#### Alternative Strategies
+Instead of using cross-references, consider:
+- Embedding related data directly in objects
+- Using vector search and filters
+- Designing schemas that minimize complex relationships
 Cross-reference relationships are directional. To make the link bi-directional, update the `Publication` collection to add a `hasAuthors` property points back to the `Author` collection.
 
 ### Multiple vector embeddings (named vectors)
