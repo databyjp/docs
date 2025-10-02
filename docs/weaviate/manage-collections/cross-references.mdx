@@ -5,7 +5,18 @@ image: og/docs/howto.jpg
 
 import CrossReferencePerformanceNote from '/_includes/cross-reference-performance-note.mdx';
 
+
 <CrossReferencePerformanceNote />
+
+## Cross-Reference Relationship Types
+
+Cross-references in Weaviate support multiple relationship patterns:
+
+- **One-to-one relationships**: Create a direct, singular connection between two objects
+- **One-to-many relationships**: One object can reference multiple related objects
+- **Many-to-many relationships**: Multiple objects can have bidirectional references
+
+> **Note**: Cross-references do not modify or affect the vectors of the source or target objects.
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
@@ -26,7 +37,22 @@ Use cross-references to establish directional relationships between collections.
 
 Notes:
 - Cross-references does not affect object vectors of the source or the target objects.
-- For multi-tenancy collection, you can establish a cross-reference from a multi-tenancy collection object to:
+
+## Performance Considerations for Cross-References
+
+When implementing cross-references, consider the following best practices:
+
+- **Limit Cross-Reference Depth**: Keep cross-reference relationships to a single level to maintain query performance
+- **Denormalization for Read-Heavy Workloads**: For frequently accessed data, consider duplicating information to reduce cross-reference complexity
+- **Batch Operations**: Use batch methods when creating multiple references to improve efficiency
+- **Careful Data Modeling**: Plan your schema thoroughly before implementing cross-references
+
+### When to Be Cautious
+
+Cross-references can impact performance in the following scenarios:
+- Deep or multi-level cross-references
+- Frequent filtering on cross-referenced properties
+- High-volume, complex relationship queries
     - A non-multi-tenancy collection object, or
     - A multi-tenancy collection object belonging to the same tenant.
 
@@ -438,7 +464,74 @@ The targets of a cross-reference can be updated.
 
 - [Connect to Weaviate](/weaviate/connections/index.mdx)
 - <SkipLink href="/weaviate/api/rest#tag/objects">References: REST - /v1/objects</SkipLink>
-- [Retrieve the cross-reference](../search/basics.md#retrieve-cross-referenced-properties) as a part of a query.
+
+## Cross-Reference Strategy Examples
+
+### Scenario 1: Separate Collections with Cross-References
+
+```json
+// Authors Collection
+{
+    "firstName": "F. Scott",
+    "lastName": "Fitzgerald"
+}
+
+// Books Collection
+{
+    "title": "The Great Gatsby",
+    "author": "<cross-reference to Author>"
+}
+```
+
+**Pros**:
+- Efficient storage & resource usage
+- Easy to update author information
+
+**Cons**:
+- Slower read & filter performance
+- Good for scenarios with infrequent author updates
+
+### Scenario 2: Embedded Author Information
+
+```json
+// Books Collection
+{
+    "title": "The Great Gatsby",
+    "author": {
+        "firstName": "F. Scott",
+        "lastName": "Fitzgerald"
+    }
+}
+```
+
+**Pros**:
+- Fast read performance
+- Simplified data access
+
+**Cons**:
+- Slower writes
+- Difficulty updating author information across multiple books
+
+### Scenario 3: Denormalized Schema
+
+```json
+// Books Collection
+{
+    "title": "The Great Gatsby",
+    "authorFirstName": "F. Scott",
+    "authorLastName": "Fitzgerald"
+}
+```
+
+**Pros**:
+- Fastest read performance
+- Simple querying and filtering
+
+**Cons**:
+- Data duplication
+- Complex updates across multiple objects
+
+Choose the strategy that best fits your specific use case, query patterns, and performance requirements.
 
 ## Questions and feedback
 

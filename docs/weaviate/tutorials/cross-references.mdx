@@ -8,8 +8,6 @@ image: og/docs/tutorials.jpg
 import SkipLink from '/src/components/SkipValidationLink'
 import UpdateInProgressNote from '/_includes/update-in-progress.mdx';
 
-<UpdateInProgressNote />
-
 import CrossReferencePerformanceNote from '/_includes/cross-reference-performance-note.mdx';
 
 <CrossReferencePerformanceNote />
@@ -51,19 +49,112 @@ Cross-references are useful when you need to establish relationships between obj
 
 In each of these cases, you can use a cross-reference property to link the objects together.
 
+### Design Considerations for Cross-References
+
+When deciding whether to use cross-references, consider the following trade-offs:
+
+#### Cross-References vs Denormalization
+
+- **Cross-References**:
+  - Pros:
+    - Maintain data integrity
+    - Allow independent updates of related objects
+    - Reduce data redundancy
+  - Cons:
+    - Can impact query performance
+    - Require additional joins during retrieval
+    - Slightly more complex to manage
+
+- **Denormalization**:
+  - Pros:
+    - Faster read performance
+    - Simpler query structure
+    - No additional joins required
+  - Cons:
+    - Data redundancy
+    - Potential inconsistency if not carefully managed
+    - More complex to update
+
+#### When to Choose Cross-References
+
+Choose cross-references when:
+- You need to maintain data independence
+- Related objects change frequently
+- You want to minimize data duplication
+- Strict data consistency is crucial
+
+Choose denormalization when:
+- Read performance is critical
+- Related data rarely changes
+- You have a read-heavy workload
+- Simplicity of querying is preferred
+
+#### Performance Considerations
+
+- Cross-references can introduce additional query complexity
+- For high-performance scenarios, consider:
+  - Limiting cross-reference depth
+  - Using batch operations
+  - Carefully designing your data model
+- Monitor and benchmark your specific use case
+
+> **Performance Warning**: Extensive use of cross-references, especially multiple levels deep, can significantly impact query performance. Always test and profile your specific implementation.
+
 ## How cross-references work
 
 In Weaviate, cross-reference relationships are defined at the source class as a property. Each of these properties is characterized by a name and a data type. Each cross-reference property can be directed to one or more target classes. For example, a `hasAuthor` cross-reference property might be directed to the `Author` class, while a `sourceDocument` cross-reference property might be directed to the `Document` class.
 
-### Directionality of cross-references
+### Advanced Cross-Reference Mechanics
+
+#### Directionality of Cross-References
 
 Cross-references are uni-directional; to establish a bi-directional relationship, two distinct cross-reference properties are required, facilitating linkage in both directions.
 
-### Cross references and vectors
+Example of bi-directional references:
+```json
+{
+    "class": "Book",
+    "properties": [{
+        "name": "hasAuthor",
+        "dataType": ["Author"]
+    }]
+},
+{
+    "class": "Author",
+    "properties": [{
+        "name": "writtenBooks",
+        "dataType": ["Book"]
+    }]
+}
+```
 
-Linking objects with cross-references does not affect the vectorization of the objects.
+#### Cross-References and Vectors
 
-For example, linking a blog post to its author with a cross-reference will not affect the vector of the author object or the blog object.
+Linking objects with cross-references does not affect the vectorization of the objects. This means:
+
+- The vector representation remains independent of cross-references
+- Cross-references do not influence semantic similarity
+- You can create references without changing object embeddings
+
+#### Best Practices for Cross-References
+
+1. **Keep References Lightweight**
+   - Only create cross-references when necessary
+   - Avoid creating references for every possible relationship
+
+2. **Consider Query Patterns**
+   - Design cross-references based on how you'll query the data
+   - Optimize for your most common access patterns
+
+3. **Use Batch Operations**
+   - When creating multiple cross-references, use batch methods
+   - Reduces overhead and improves performance
+
+4. **Monitor Performance**
+   - Profile your queries with cross-references
+   - Be prepared to denormalize or adjust your model if performance suffers
+
+> **Important**: While cross-references provide powerful linking capabilities, they can introduce complexity and potential performance bottlenecks. Always test and benchmark your specific use case.
 
 ## Managing cross-references
 
@@ -203,7 +294,80 @@ Because cross-references do not affect vectors, you cannot use vector searches t
 
 However, you could use two separate queries to achieve a similar result. For example, you could perform a vector search to identify `JeopardyCategory` objects that are similar to a given vector, resulting in a list of `JeopardyCategory` objects. You could then use the unique `title` properties of these objects in a second query filter the results as shown above. This will result in `JeopardyQuestion` objects that are cross-referenced to the `JeopardyCategory` objects identified in the first query.
 
-:::
+## Cross-reference Design Patterns
+
+Cross-references can model various relationship types with different characteristics:
+
+### One-to-One Relationships
+
+```json
+{
+    "class": "User",
+    "properties": [{
+        "name": "profile",
+        "dataType": ["UserProfile"]
+    }]
+}
+```
+
+- Best for: Unique, exclusive relationships
+- Pros: Clear, direct linkage
+- Cons: Can be less flexible than embedded data
+
+### One-to-Many Relationships
+
+```json
+{
+    "class": "Author",
+    "properties": [{
+        "name": "books",
+        "dataType": ["Book"]
+    }]
+}
+```
+
+- Best for: When one object can have multiple related objects
+- Pros:
+  - Flexible
+  - Allows independent management of related objects
+- Cons:
+  - Potential performance overhead
+  - Complex querying
+
+### Many-to-Many Relationships
+
+```json
+{
+    "class": "Student",
+    "properties": [{
+        "name": "courses",
+        "dataType": ["Course"]
+    }]
+},
+{
+    "class": "Course",
+    "properties": [{
+        "name": "students",
+        "dataType": ["Student"]
+    }]
+}
+```
+
+- Best for: Complex relationships with multiple interconnections
+- Pros:
+  - Maximum flexibility
+  - True representation of complex relationships
+- Cons:
+  - Most complex to query
+  - Higher performance overhead
+
+### Choosing the Right Pattern
+
+- **One-to-One**: When objects have a unique, exclusive relationship
+- **One-to-Many**: When one object can have multiple related objects
+- **Many-to-Many**: When objects have complex, bidirectional relationships
+
+Always consider your specific use case, performance requirements, and query patterns when designing cross-references.
 
 ## Further information
 

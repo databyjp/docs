@@ -208,52 +208,87 @@ import CrossReferencePerformanceNote from '/_includes/cross-reference-performanc
 
 <CrossReferencePerformanceNote />
 
-If data objects are related, you can use [cross-references](../manage-collections/cross-references.mdx) to represent the relationships. Cross-references in Weaviate are like links that help you retrieve related information. Cross-references capture relationships, but they do not change the vectors of the underlying objects.
+Cross-references in Weaviate are powerful mechanisms for representing relationships between data objects across different collections. They enable flexible and dynamic data modeling by allowing you to:
 
-To create a reference, use a property from one collection to specify the value of a related property in the other collection.
+- Create **one-to-one** relationships
+- Establish **one-to-many** relationships
+- Build **many-to-many** relationships
 
-#### Cross-reference example
+#### Key Characteristics of Cross-References
 
-For example, *"Paul Krugman writes for the New York Times"* describes a relationship between Paul Krugman and the New York Times. To capture that relationship, create a cross-reference between the `Publication` object that represents the New York Times and the `Author` object that represents Paul Krugman.
+Cross-references have several important characteristics:
 
-The New York Times `Publication` object looks like this. Note the UUID in the `"id"` field:
+1. **Relationship Representation**
+   - Capture semantic connections between objects
+   - Do NOT modify the underlying object vectors
+   - Preserve the original vector embeddings of connected objects
 
-```json
-{
-    "id": "32d5a368-ace8-3bb7-ade7-9f7ff03eddb6",
-    "class": "Publication",
-    "properties": {
-        "name": "The New York Times"
-    },
-    "vector": [...]
-}
+2. **Directionality**
+   - Cross-references can be unidirectional or bidirectional
+   - To create a bidirectional link, you must explicitly define references in both directions
+
+3. **Performance Considerations**
+   - Cross-references introduce additional query complexity
+   - Performance can degrade with deep or multiple levels of cross-references
+   - Filtering on cross-referenced properties can significantly impact query speed
+
+#### Creating Cross-References
+
+To create a reference, use a property from one collection to specify the value of a related property in another collection. References are created using object UUIDs.
+
+#### Cross-reference Example
+
+Consider a scenario where we want to model relationships between authors and publications:
+
+```python
+# Creating cross-references between Author and Publication collections
+batch.add_reference(
+    from_collection="Author",
+    from_uuid=krugman_uuid,
+    from_property="writesFor",
+    to_collection="Publication",
+    to_uuid=nyt_uuid
+)
+
+# Bidirectional reference
+batch.add_reference(
+    from_collection="Publication",
+    from_uuid=nyt_uuid,
+    from_property="hasAuthors",
+    to_collection="Author",
+    to_uuid=krugman_uuid
+)
 ```
 
-The Paul Krugman `Author` object adds a new property, `writesFor`, to capture the relationship.
+#### Cross-References in Multi-Tenant Environments
 
-```json
-{
-    "id": "779c8970-0594-301c-bff5-d12907414002",
-    "class": "Author",
-    "properties": {
-        "name": "Paul Krugman",
-        ...
-// highlight-start
-        "writesFor": [
-            {
-                "beacon": "weaviate://localhost/32d5a368-ace8-3bb7-ade7-9f7ff03eddb6",
-                "href": "/v1/objects/32d5a368-ace8-3bb7-ade7-9f7ff03eddb6"
-            }
-        ],
-// highlight-end
-    },
-    "vector": [...]
-}
-```
+In multi-tenant collections, cross-references have specific constraints:
 
-The value of the `beacon` sub-property is the `id` value from the New York Times `Publication` object.
+- **Supported Scenarios**:
+  - References within the same tenant
+  - References from a multi-tenant object to a non-multi-tenant object
 
-Cross-reference relationships are directional. To make the link bi-directional, update the `Publication` collection to add a `hasAuthors` property points back to the `Author` collection.
+- **Restricted Scenarios**:
+  - Cross-references between different tenants
+  - References from a non-multi-tenant object to a multi-tenant object
+
+#### Best Practices
+
+1. **Limit Cross-Reference Depth**
+   - Avoid deep, multi-level cross-references
+   - Consider denormalization for read-heavy workloads
+
+2. **Performance Optimization**
+   - Use batch operations when creating multiple references
+   - Be cautious of complex cross-reference structures
+
+3. **Design Considerations**
+   - Evaluate whether cross-references or embedded objects better suit your use case
+   - Consider query patterns and performance implications
+
+:::caution Performance Trade-offs
+Cross-references provide flexibility but can introduce query complexity. Carefully design your data model to balance relationship representation and query performance.
+:::
 
 ### Multiple vector embeddings (named vectors)
 

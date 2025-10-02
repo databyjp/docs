@@ -601,11 +601,106 @@ import CrossReferencePerformanceNote from '/\_includes/cross-reference-performan
 
 <CrossReferencePerformanceNote />
 
-The `cross-reference` type allows a link to be created from one object to another. This is useful for creating relationships between collections, such as linking a `Person` collection to a `Company` collection.
+The `cross-reference` type allows creating directional, typed relationships between objects in different collections. These references enable complex data modeling by establishing links that represent various relationship types:
 
-The `cross-reference` type objects are `arrays` by default. This allows you to link to any number of instances of a given collection (including zero).
+### Relationship Types
+- **One-to-One**: A single object references exactly one object in another collection
+- **One-to-Many**: One object can reference multiple objects
+- **Many-to-Many**: Multiple objects can reference multiple objects bidirectionally
+
+### Key Characteristics
+- Cross-references are implemented using UUIDs
+- They are always directional (from one object to another)
+- References are typed, specifying the target collection
+- Cross-reference objects are arrays by default, allowing multiple references
+
+### Performance Considerations
+> **Warning**: Cross-references can significantly impact query performance, especially when:
+> - Querying multiple levels of cross-references
+> - Applying filters at the cross-reference level
+> - Dealing with large, complex relationship graphs
+
+### Best Practices
+- Limit cross-reference depth to a single level when possible
+- Use batch operations when creating multiple references
+- Consider denormalization for read-heavy workloads
+- Plan your data model carefully before implementing cross-references
+
+### Multi-Tenancy Considerations
+When working with multi-tenant collections, cross-references have specific behaviors:
+
+- Cross-references can be created within the same tenant
+- References between different tenants are restricted
+- Performance and isolation are maintained through tenant-specific sharding
 
 For more information on cross-references, see the [cross-references](../concepts/data.md#cross-references). To see how to work with cross-references, see [how to manage data: cross-references](../manage-collections/cross-references.mdx).
+### Code Examples
+
+import CrossRefPy from '!!raw-loader!/includes/code/python/config-refs.cross-references.py';
+import CrossRefTs from '!!raw-loader!/includes/code/typescript/config-refs.cross-references.ts';
+
+#### Basic Cross-Reference Definition
+
+<Tabs groupId="languages">
+  <TabItem value="py" label="Python">
+    <FilteredTextBlock
+      text={CrossRefPy}
+      startMarker="# START CrossReferenceDefinition"
+      endMarker="# END CrossReferenceDefinition"
+      language="py"
+    />
+  </TabItem>
+  <TabItem value="js" label="JS/TS">
+    <FilteredTextBlock
+      text={CrossRefTs}
+      startMarker="// START CrossReferenceDefinition"
+      endMarker="// END CrossReferenceDefinition"
+      language="ts"
+    />
+  </TabItem>
+</Tabs>
+
+#### One-to-Many Cross-References
+
+<Tabs groupId="languages">
+  <TabItem value="py" label="Python">
+    <FilteredTextBlock
+      text={CrossRefPy}
+      startMarker="# START OneToManyCrossReference"
+      endMarker="# END OneToManyCrossReference"
+      language="py"
+    />
+  </TabItem>
+  <TabItem value="js" label="JS/TS">
+    <FilteredTextBlock
+      text={CrossRefTs}
+      startMarker="// START OneToManyCrossReference"
+      endMarker="// END OneToManyCrossReference"
+      language="ts"
+    />
+  </TabItem>
+</Tabs>
+
+#### Multi-Tenant Cross-References
+
+<Tabs groupId="languages">
+  <TabItem value="py" label="Python">
+    <FilteredTextBlock
+      text={CrossRefPy}
+      startMarker="# START MultiTenantCrossReference"
+      endMarker="# END MultiTenantCrossReference"
+      language="py"
+    />
+  </TabItem>
+  <TabItem value="js" label="JS/TS">
+    <FilteredTextBlock
+      text={CrossRefTs}
+      startMarker="// START MultiTenantCrossReference"
+      endMarker="// END MultiTenantCrossReference"
+      language="ts"
+    />
+  </TabItem>
+</Tabs>
 
 ## Notes
 
