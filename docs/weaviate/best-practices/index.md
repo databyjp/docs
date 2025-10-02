@@ -102,7 +102,7 @@ If you have a large number of vectors, consider using vector quantization to red
 ![Overview of quantization schemes](../../../_includes/images/concepts/quantization_overview_light.png#gh-light-mode-only "Overview of quantization schemes")
 ![Overview of quantization schemes](../../../_includes/images/concepts/quantization_overview_dark.png#gh-dark-mode-only "Overview of quantization schemes")
 
-For HNSW indexes, we suggest enabling [rotational quantization (RQ)](../configuration/compression/rq-compression.md) as a starting point. It provides significant memory usage benefits and almost no loss in query accuracy. 
+For HNSW indexes, we suggest enabling [rotational quantization (RQ)](../configuration/compression/rq-compression.md) as a starting point. It provides significant memory usage benefits and almost no loss in query accuracy.
 
 import CompressionByDefault from '/_includes/compression-by-default.mdx';
 
@@ -128,25 +128,39 @@ Set `DISK_USE_WARNING_PERCENTAGE` and `DISK_USE_READONLY_PERCENTAGE` to adjust t
 
 ### Plan memory allocation
 
-When running Weaviate, its memory footprint is a common bottleneck. As a rule of thumb, you can expect to need:
+When running Weaviate, memory footprint is a critical consideration. Here are detailed guidelines for memory estimation:
 
-- 6GB of memory for 1 million, 1024-dimensional vectors
-- 1.5GB of memory for 1 million, 256-dimensional vectors
-- 2GB of memory 1 million, 1024-dimensional vectors with quantization enabled
+#### Memory Estimation Rules
+
+- **Vector Index Memory Calculation**: `2 * numDimensions * numVectors * 4B`
+  - Example: For 100M vectors with 512 dimensions, memory footprint would be approximately `512 * 10^8 * 4 * 2 ≈ 400GiB`
+
+- **Memory Allocation Guidelines**:
+  - Keep 20% of extra memory for page cache and additional system requirements
+  - Approximate memory needs:
+    - 6GB for 1 million, 1024-dimensional vectors
+    - 1.5GB for 1 million, 256-dimensional vectors
+    - 2GB for 1 million, 1024-dimensional vectors with quantization enabled
+
+#### Memory Optimization Strategies
+
+- Use vector quantization to reduce memory footprint
+- Reduce vector dimensionality using techniques like Principal Component Analysis (PCA)
+- Adjust HNSW index parameters:
+  - Reduce `maxConnections`
+  - Increase `ef` and `efConstruction` to maintain recall and precision
 
 <details>
-  <summary>How did we come up with this figure?</summary>
+  <summary>Detailed Memory Calculation</summary>
 
-Without quantization, each vector is stored as an n-dimensional float. For 1024-dimensional vectors, this means:
-
+Without quantization, each vector is stored as an n-dimensional float. For 1024-dimensional vectors:
 - 4 bytes per float * 1024 dimensions * 1M vectors = 4GB
-
-We add some overhead for the index structure, and additional overheads, which brings us to the approximate figure of 6GB.
-
+- Add overhead for index structure and system processes brings the total to approximately 6GB.
 </details>
 
 :::tip Further resources
 - [Concepts: Resource planning](../concepts/resources.md)
+- [Configuration: Vector Quantization](../configuration/compression/index.md)
 :::
 
 ### How to quickly check the memory usage
@@ -317,7 +331,44 @@ At the moment, offloading tenants is only available in the open-source version o
 
 ### Consider using a reranker
 
-### Effective hybrid search strategies -->
+## Performance Optimization Strategies
+
+### Advanced Performance Tuning
+
+#### CPU and Query Performance Estimation
+
+Estimate CPU requirements using the following formula:
+`minimumNumberOfCpu = QPS * AverageCPULatencyPerQuery + 6`
+
+Typical query latency estimates:
+- Pure Vector search: 3-4ms (for 1M objects)
+- Filtered search: ~10ms
+- Hybrid search: ~20ms
+
+Latency typically doubles with each order of magnitude increase in vector count.
+
+#### Performance Configuration Options
+
+- Enable `ASYNC_INDEXING` for improved write performance
+  ```yaml
+  ASYNC_INDEXING: true
+  ```
+
+- Use `USE_BLOCKMAX_WAND` for large hybrid keyword searches
+- Leverage `ACORN` HNSW index for improved filtering in vector search
+
+#### Profiling and Monitoring
+
+- Enable Go profiling with `GO_PROFILING_DISABLE` environment variable
+- Monitor query performance using built-in slow query logging
+  ```yaml
+  QUERY_SLOW_LOG_ENABLED: true
+  ```
+
+:::tip Further resources
+- [Configuration: Performance Tuning](/deploy/configuration/performance.md)
+- [Monitoring: Query Performance](/deploy/configuration/monitoring.md)
+:::
 
 ## Application design and integration
 

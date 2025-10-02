@@ -233,7 +233,65 @@ To learn more about their usage, visit the **[replication how-to guide](/deploy/
 | `ASYNC_REPLICATION_PROPAGATION_LIMIT` | Limits the number of out-of-sync objects that can be propagated in one asynchronous replication iteration. Default: `10000`, Min: `1`, Max: `1000000` | `string - number` | `5000` |
 | `ASYNC_REPLICATION_PROPAGATION_DELAY` | Sets a delay period to allow asynchronous write operations to reach all nodes in a shard/tenant before propagating new or updated objects. Default: `30` | `string - number` | `40` |
 | `ASYNC_REPLICATION_PROPAGATION_CONCURRENCY` | Defines the number of workers which will concurrently propagate a batch of objects. Default: `5`, Min: `1`, Max: `20` | `string - number` | `10` |
-| `ASYNC_REPLICATION_PROPAGATION_BATCH_SIZE` | Sets the maximum number of objects to propagate in a single batch. Default: `100`, Min: `1`, Max: `1000` |`string - number`  | `200` |
+
+## Deployment and Performance Configuration
+
+### Performance Tuning
+
+Weaviate provides several environment variables to optimize performance and resource utilization:
+
+#### Memory Management
+
+- `GOMEMLIMIT`: Sets a memory limit for the Go runtime. It's recommended to set this between 80-90% of your total memory for Weaviate. The Go runtime will make the garbage collector more aggressive as memory usage approaches this limit.
+
+- `LIMIT_RESOURCES`: When set to `true`, Weaviate automatically attempts to limit resources to 80% of total memory and use (number of cores - 1). This overrides `GOMEMLIMIT` but respects `GOMAXPROCS`.
+
+- `GOMAXPROCS`: Sets the maximum number of threads that can execute simultaneously. This can be used to control concurrent execution.
+
+#### Indexing and Search Performance
+
+- `USE_BLOCKMAX_WAND` and `USE_INVERTED_SEARCHABLE`: Enable the BlockMax WAND algorithm for improved BM25 and hybrid search performance. From v1.30, these are enabled by default.
+
+- `ASYNC_INDEXING`: When set to `true`, Weaviate creates vector indexes asynchronously, which can be beneficial for importing large datasets.
+
+### Resource Allocation Strategies
+
+#### CPU Estimation
+
+Estimating CPU requirements depends on your workload:
+
+- Pure Vector Search: Typically fast (3-4ms for 1M objects)
+- Filtered Search: More complex, around 10ms
+- Hybrid Search: Can take up to 20ms
+
+Rule of thumb: $minimumCPU = QPS * AverageQueryLatency + 6$
+
+#### Memory Estimation for Vector Indexes
+
+Vector index memory footprint can be estimated with: $2 * numDimensions * numVectors * 4B$
+
+For example, 100M vectors with 512 dimensions would require approximately 400GiB of memory.
+
+### Strategies to Reduce Memory Usage
+
+1. Use vector compression techniques
+2. Reduce vector dimensionality (e.g., using Principal Component Analysis)
+3. Adjust HNSW index parameters like `maxConnections`
+
+### Monitoring and Optimization
+
+- `GO_PROFILING_DISABLE` and `GO_PROFILING_PORT`: Control Go runtime profiling for performance analysis
+- `QUERY_SLOW_LOG_ENABLED` and `QUERY_SLOW_LOG_THRESHOLD`: Log slow queries for debugging
+
+### Best Practices
+
+- Always leave 20% of memory for page cache and additional requirements
+- Test and benchmark your specific use case
+- Monitor resource utilization and adjust configurations accordingly
+
+:::tip Performance Tuning
+Performance optimization is highly dependent on your specific use case, data characteristics, and query patterns. Always benchmark and profile your Weaviate deployment.
+:::
 
 ```mdx-code-block
 </APITable>
