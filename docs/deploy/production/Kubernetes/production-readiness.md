@@ -43,6 +43,44 @@ If you *do* identify gaps within your deployment, be sure to reach out to your S
   - [ ] Is query performance monitored using Prometheus or Grafana?
 - [ ] Have replica shards been deployed for load balancing and failover support?
 
+### Memory and Performance Tuning
+
+- Consider vector quantization techniques to reduce memory requirements
+- Properly configure `GOMEMLIMIT` based on available system memory
+- Implement `ASYNC_INDEXING` for improved indexing performance
+- Explore `USE_BLOCKMAX_WAND` for large hybrid search scenarios
+- Utilize `ACORN` HNSW index for improved filtering in vector search
+
+### Go Runtime Optimization
+
+- Configure `GOGC` to control garbage collection trigger percentage
+- Set `GO_PROFILING_DISABLE` to enable GO profiler when needed
+- Monitor and adjust `GOMEMLIMIT` to prevent excessive garbage collection pauses
+
+### Backup and Disaster Recovery
+
+- Implement incremental and regular backup schedules
+  - Example: 7 daily backups, 4 weekly backups, 6 monthly backups
+- Test recovery procedures thoroughly
+- Consider multiple backup storage options:
+  - Cloud-based modules: `backup-s3`, `backup-gcs`, `backup-azure`
+  - Filesystem module for development environments
+  - Disk snapshots (LVM, VMDK, EBS)
+
+### Monitoring and Logging
+
+- Configure log levels and formats
+  - Use `LOG_LEVEL` to set appropriate logging verbosity
+  - Utilize `LOG_FORMAT` to standardize log output
+- Enable slow query logging
+  - Set `QUERY_SLOW_LOG_ENABLED` to track performance bottlenecks
+- Monitor query performance metrics
+  - Track default and maximum query results
+  - Use `QUERY_DEFAULTS_LIMIT` and `QUERY_MAXIMUM_RESULTS` for control
+- Implement comprehensive resource utilization tracking
+  - Monitor CPU, memory, and network performance
+- Set up alerting for critical events and performance thresholds
+
 
 ### Resource Management
 
@@ -84,7 +122,7 @@ If you *do* identify gaps within your deployment, be sure to reach out to your S
 - [ ]  Are health and performance metrics being visualized in Grafana?
 - [ ]  Are alerts configured for events?
 
-Evaluate these key areas to build a highly available, resilient, and efficient deployment that will scale to meet your business needs. By ensuring that these self-assessment questions have been addressed, you can proactively identify potential risks and maximize the reliability of your deployment. 
+Evaluate these key areas to build a highly available, resilient, and efficient deployment that will scale to meet your business needs. By ensuring that these self-assessment questions have been addressed, you can proactively identify potential risks and maximize the reliability of your deployment.
 
 ## Questions and feedback
 
