@@ -71,6 +71,32 @@ import DynamicAsyncRequirements from '/_includes/dynamic-index-async-req.mdx';
 
 In multi-tenant configurations where different tenants have different object counts, dynamic indexes are a good index choice. Collections with dynamic indexes have less overhead since tenants can use flat indexes when the HNSW index isn't needed.
 
+### ACORN Performance Optimization
+
+In multi-tenant environments, ACORN (Adaptive Candidate Optimization and Retrieval Network) can significantly enhance the performance of filtered vector searches. ACORN is particularly beneficial when:
+
+- Tenants have complex or restrictive filter combinations
+- Queries involve negatively correlated filters
+- Search performance is critical across varying dataset sizes
+
+To enable ACORN with a dynamic index, configure the vector index with the ACORN filter strategy:
+
+```python
+vector_index_config=Configure.VectorIndex.dynamic(
+  flat_index_config=...,
+  hnsw_index_config=Configure.VectorIndex.hnsw(
+    filter_strategy=VectorFilterStrategy.ACORN
+  )
+)
+```
+
+#### Monitoring ACORN in Multi-Tenant Environments
+
+- Regularly assess query performance across different tenants
+- Use Weaviate's monitoring tools to track ACORN's impact
+- Adjust ACORN parameters if search latency varies significantly between tenants
+In multi-tenant configurations where different tenants have different object counts, dynamic indexes are a good index choice. Collections with dynamic indexes have less overhead since tenants can use flat indexes when the HNSW index isn't needed.
+
 The default index conversion threshold is 10,000 objects. You can configure the threshold value when you create the dynamic index.
 
 This table shows how a dynamic index changes as the number of objects in a collection grows. The example configuration is for a dynamic index with the following properties:
@@ -80,12 +106,12 @@ This table shows how a dynamic index changes as the number of objects in a colle
 - HNSW index with SQ configured
 - The training threshold for SQ is 100,000 objects.
 
-| Number of objects | Index type | Compression | Notes |
-| :- | :- | :- | :- |
-| 0 - 9,999 | Flat index | BQ | Flat index and BQ are active. |
-| 10,000 | Flat -> HNSW | None | The index converts to HNSW. The index is stored in RAM. |
-| 100,000 | HNSW | Training | The collection's object count reaches the SQ training threshold. |
-| 100,001 | HNSW | SQ | HNSW and SQ are active. |
+|| Number of objects | Index type | Compression | ACORN Performance | Notes |
+|| :- | :- | :- | :- | :- |
+|| 0 - 9,999 | Flat index | BQ | N/A | Flat index and BQ are active. |
+|| 10,000 | Flat -> HNSW | None | Moderate | The index converts to HNSW. The index is stored in RAM. |
+|| 100,000 | HNSW | Training | High | The collection's object count reaches the SQ training threshold. ACORN can provide up to 10x faster filtered searches. |
+|| 100,001 | HNSW | SQ | Very High | HNSW and SQ are active. ACORN continues to optimize filtered search performance. |
 
 :::info Configure the flat index and the HNSW index
 Configure the flat index and the HNSW index when you define the dynamic index. The dynamic index uses the flat index initially, then switches to the HNSW index. Both indexes should be configured before they are used.
