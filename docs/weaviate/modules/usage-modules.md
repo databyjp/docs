@@ -1,6 +1,6 @@
 ---
 title: Usage Module
-description: Add the usage module to collect and upload usage analytics data to Google Cloud Storage (GCS) or AWS S3. 
+description: Add the usage module to collect and upload usage analytics data to Google Cloud Storage (GCS) or AWS S3.
 ---
 
 :::info Added in `v1.32`
@@ -8,15 +8,15 @@ The usage module collects and uploads usage anaytics data to Google Cloud Storag
 :::
 
 :::danger
-This module is in development and breaking changes can and will happen. 
+This module is in development and breaking changes can and will happen.
 :::
 
 ### What it does:
 
 - Periodically collecting usage data.
 - Uploading JSON reports to  either S3 or GCS.
-- Supports runtime configuration overrides. 
-- Includes metrics and logging. 
+- Supports runtime configuration overrides.
+- Includes metrics and logging.
 - Verifies storage permissions before uploading.
 
 ## Configuration
@@ -26,12 +26,12 @@ This module is in development and breaking changes can and will happen.
 ```yaml
 
 # environment variables
-ENABLE_MODULES="backup-gcs,usage-gcs" 
-BACKUP_GCS_BUCKET=weaviate-backups 
-USAGE_GCS_BUCKET=weaviate-usage 
-USAGE_GCS_PREFIX=billing-usage 
+ENABLE_MODULES="backup-gcs,usage-gcs"
+BACKUP_GCS_BUCKET=weaviate-backups
+USAGE_GCS_BUCKET=weaviate-usage
+USAGE_GCS_PREFIX=billing-usage
 TRACK_VECTOR_DIMENSIONS=true  # won't be needed from 1.32.1
-RUNTIME_OVERRIDES_ENABLED=true 
+RUNTIME_OVERRIDES_ENABLED=true
 RUNTIME_OVERRIDES_PATH="${PWD}/tools/dev/config.runtime-overrides.yaml"
 RUNTIME_OVERRIDES_LOAD_INTERVAL=30s
 
@@ -46,8 +46,8 @@ usage_gcs_prefix: billing
 ### Environment variables
 
 :::tip
-The usage module must be enabled for any configuration to take effect. 
-While this module is not related to backups, if backups are not enabled it won't collect metrics for backups. 
+The usage module must be enabled for any configuration to take effect.
+While this module is not related to backups, if backups are not enabled it won't collect metrics for backups.
 :::
 
 ```bash
@@ -62,7 +62,7 @@ ENABLE_MODULES=usage-s3,usage-gcs # or both
 #### Runtime overrides
 
 :::tip
-`TRACK_VECTOR_DIMENSIONS=true` is required to collect vector dimension metrics in your usage reports, from `v1.32.1` this will no longer be required. 
+`TRACK_VECTOR_DIMENSIONS=true` is required to collect vector dimension metrics in your usage reports, from `v1.32.1` this will no longer be required.
 :::
 
 ```shell
@@ -118,7 +118,7 @@ USAGE_S3_PREFIX=usage-reports
 
 ```
 
-#### GCP GCS variables 
+#### GCP GCS variables
 
 ```bash
 # Required: GCS bucket name
@@ -130,16 +130,35 @@ USAGE_GCS_PREFIX=usage-reports
 
 ### Monitoring
 
-The modules provide Prometheus metrics:
+The usage module provides comprehensive Prometheus metrics for in-depth observability:
 
-- `weaviate_usage_{gcs|s3}_operations_total`: Total number of operations for module labels (`operation`:collect/upload,  status: success, error).
-- `weaviate_usage_{gcs|s3}_operation_latency_seconds`: Latency of usage operations in seconds labels (`operation` :collect/upload).
-- `weaviate_usage_{gcs|s3}_resource_count`: Number of resources tracked by module, labels (`resource_type` :collections/shards/backups).
-- `weaviate_usage_{gcs|s3}_uploaded_file_size_bytes`: Size of the uploaded usage file in bytes.
+#### Operations Metrics
+- `weaviate_usage_{gcs|s3}_operations_total`: Tracks the total number of module operations
+  - Labels:
+    - `operation`: Type of operation (collect/upload)
+    - `status`: Operation status (success/error)
+  - **Use Case**: Monitor module reliability and track successful vs. failed operations
 
+#### Performance Metrics
+- `weaviate_usage_{gcs|s3}_operation_latency_seconds`: Measures the latency of usage operations
+  - Labels:
+    - `operation`: Type of operation (collect/upload)
+  - **Use Case**: Identify performance bottlenecks in data collection and upload processes
+
+#### Resource Tracking
+- `weaviate_usage_{gcs|s3}_resource_count`: Provides a count of tracked resources
+  - Labels:
+    - `resource_type`: Type of resources (collections/shards/backups)
+  - **Use Case**: Monitor the scale and growth of your Weaviate instance
+
+#### Storage Metrics
+- `weaviate_usage_{gcs|s3}_uploaded_file_size_bytes`: Tracks the size of uploaded usage files
+  - **Use Case**: Understand data transfer volumes and storage requirements
+
+> **Note**: These metrics can be integrated with broader monitoring strategies outlined in the [Weaviate Monitoring Guide](/docs/deploy/configuration/monitoring.md). Use them in conjunction with other system metrics to gain comprehensive insights into your Weaviate instance's performance and usage patterns.
 ### Debug logs
 
-See detailed module activity by enabling debugging. 
+See detailed module activity by enabling debugging.
 
 ```bash
 LOG_LEVEL=debug
@@ -158,7 +177,7 @@ AWS_ENDPOINT=http://localhost:9000
 
 ```
 AWS_REGION=us-east-1
-AWS_ENDPOINT=minio.weaviate.svc.cluster.local:9000 
+AWS_ENDPOINT=minio.weaviate.svc.cluster.local:9000
 ```
 
 ## Further resources

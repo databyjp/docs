@@ -56,17 +56,24 @@ command. In this setup the following components are used:
 
 When using multi-tenancy, we suggest setting the `PROMETHEUS_MONITORING_GROUP` [environment variable](/deploy/configuration/env-vars/index.md) as `true` so that data across all tenants are grouped together for monitoring.
 
-## Obtainable Metrics
+## Query Performance Debugging
 
-The list of metrics that are obtainable through Weaviate's metric system is
-constantly being expanded. The complete list is in the [`prometheus.go`](https://github.com/weaviate/weaviate/blob/main/usecases/monitoring/prometheus.go) source code file.
+Weaviate provides configuration options to automatically trace and log slow queries:
 
-This page describes some noteworthy metrics and their uses.
+- `QUERY_SLOW_LOG_ENABLED`: Enable slow query logging
+- `QUERY_SLOW_LOG_THRESHOLD`: Set the threshold for what constitutes a slow query
 
-Typically metrics are quite granular, as they can always be aggregated later
-on. For example if the granularity is "shard", you could aggregate all "shard"
-metrics of the same "class" to obtain a class metrics, or aggregate all metrics
-to obtain the metric for the entire Weaviate instance.
+Example slow query log output:
+
+```
+level=warning msg="Slow query detected (0s)" ...
+keyword_ranking="<nil>" limit=100
+query=ObjectSearch shard=multitenant_tenantA
+sort="[]" tenant=tenantA
+took="61.917µs"
+```
+
+This feature helps you identify and optimize queries that might be impacting system performance.
 
 | Metric | Description | Labels | Type |
 |---|---|---|---|
@@ -134,7 +141,22 @@ to obtain the metric for the entire Weaviate instance.
 | `weaviate_usage_{gcs\|s3}_uploaded_file_size_bytes` | Size of the uploaded usage file in bytes | NA | `Gauge` |
 
 
-Extending Weaviate with new metrics is very easy. To suggest a new metric, see the [contributor guide](/contributor-guide).
+
+## Resource Starvation Impact
+
+### Disk Resource Impact
+- Shards will automatically switch to Read Only when 90% of disk is used (configurable via `DISK_USE_READONLY_PERCENTAGE`)
+- IO/s saturation results in significant increase of both read & write requests latency
+
+### Memory Resource Impact
+- Pods will encounter Out Of Memory (OOM) errors
+- Pods are likely to crash, potentially entering an infinite restart loop
+
+### CPU Performance Implications
+- Significant increase in both read & write request latencies
+- Reduced overall system responsiveness
+
+> **Note**: Monitor your system proactively to detect and mitigate resource constraints before they impact users and service performance.
 
 ### Versioning
 
@@ -159,6 +181,9 @@ your uses perfectly:
 | [Usage](https://github.com/weaviate/weaviate/blob/master/tools/dev/grafana/dashboards/usage.json)                             | Obtain usage metrics, such as number of objects imported, etc.                                                          | ![Usage](./img/weaviate-sample-dashboard-usage.png 'Usage')                                                        |
 | [Aysnc index queue](https://github.com/weaviate/weaviate/blob/main/tools/dev/grafana/dashboards/index_queue.json)             | Observe index queue activity                                                                                            | ![Async index queue](./img/weaviate-sample-dashboard-async-queue.png 'Async index queue')                          |
 
+## Additional Resources
+
+- [Weaviate Monitoring Training Slides](https://weaviate.io/developers/weaviate/configuration/monitoring-training)
 ## `nodes` API Endpoint
 
 To get collection details programmatically, use the [`nodes`](/deploy/configuration/nodes.md) REST endpoint.
@@ -171,4 +196,63 @@ import APIOutputs from '/_includes/rest/node-endpoint-info.mdx';
 
 import DocsFeedback from '/_includes/docs-feedback.mdx';
 
-<DocsFeedback/>
+
+## Recommended Alerts
+
+Below are example Prometheus alert configurations to help monitor Weaviate's health:
+
+```yaml
+groups:
+  - name: weaviate-alerts
+    rules:
+      - alert: HighCPUUsage
+        expr: rate(process_cpu_seconds_total[5m]) > 0.9
+        for: 2m
+        labels:
+          severity: high
+        annotations:
+          summary: "High CPU Usage on {{ $labels.instance }}"
+          description: "CPU usage has exceeded 90% for 2 minutes on instance {{ $labels.instance }}."
+
+      - alert: OutOfMemory
+        expr: kube_pod_container_status_last_terminated_reason{container="weaviate", reason="OOMKilled"} > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: "Weaviate Pod OOM Killed"
+          description: "A Weaviate pod was killed due to Out of Memory"
+
+      - alert: WeaviateRestarting
+        expr: kube_pod_container_status_waiting_reason{reason=~"CrashLoopBackOff|ErrImagePull|ImagePullBackOff|Init:CrashLoopBackOff"} > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "Weaviate Pod Repeatedly Restarting"
+          description: "A Weaviate pod is in a restart loop"
+```
+
+> **Best Practices**:
+> - Regularly review and adjust alert thresholds
+> - Use notifications wisely to avoid alert fatigue
+> - Adapt alerts to your specific use case and context
+## Troubleshooting with Profiling
+
+Weaviate supports Go profiling to help diagnose performance bottlenecks. Use the following configuration:
+- `GO_PROFILING_DISABLE`: Enable/disable profiling
+- `GO_PROFILING_PORT`: Configure the profiling port
+
+Example profiling commands:
+
+```bash
+# CPU Profiling
+go tool pprof --http=:6061 http://localhost:6060/debug/pprof/profile?seconds=30
+
+# Memory Profiling
+go tool pprof -http=:6061 -lines http://localhost:6060/debug/pprof/heap
+
+# Profiling remotely
+go tool pprof -proto http://localhost:6060/debug/pprof/profile?seconds=10
+go tool pprof --http=:6061 profile002.pb.gz
+```
+
+> **Tip**: These profiling tools can help you understand resource usage, identify bottlenecks, and optimize Weaviate's performance.

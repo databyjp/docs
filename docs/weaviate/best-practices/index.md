@@ -102,7 +102,7 @@ If you have a large number of vectors, consider using vector quantization to red
 ![Overview of quantization schemes](../../../_includes/images/concepts/quantization_overview_light.png#gh-light-mode-only "Overview of quantization schemes")
 ![Overview of quantization schemes](../../../_includes/images/concepts/quantization_overview_dark.png#gh-dark-mode-only "Overview of quantization schemes")
 
-For HNSW indexes, we suggest enabling [rotational quantization (RQ)](../configuration/compression/rq-compression.md) as a starting point. It provides significant memory usage benefits and almost no loss in query accuracy. 
+For HNSW indexes, we suggest enabling [rotational quantization (RQ)](../configuration/compression/rq-compression.md) as a starting point. It provides significant memory usage benefits and almost no loss in query accuracy.
 
 import CompressionByDefault from '/_includes/compression-by-default.mdx';
 
@@ -153,10 +153,28 @@ We add some overhead for the index structure, and additional overheads, which br
 
 In production settings, you should set up cluster [monitoring](/deploy/configuration/monitoring.md) with tools such as Grafana & Prometheus.
 
-There are, however, other ways to quickly check Weaviate's memory usage.
+There are, however, other ways to quickly check Weaviate's memory usage and performance.
 
-:::note If you have Prometheus monitoring setup already
-If you only care about the overall usage, independent of the contents, and have a prometheus monitoring setup already, you can check the metric `go_memstats_heap_inuse_bytes` which should always show the full memory footprint.
+:::note Tracking Slow Queries
+To automatically log and track slow queries, use these configuration options:
+- `QUERY_SLOW_LOG_ENABLED`: Enable slow query logging
+- `QUERY_SLOW_LOG_THRESHOLD`: Set the time threshold for what constitutes a 'slow' query
+
+Example log output shows queries exceeding the specified threshold:
+```
+level=warning msg="Slow query detected (0s)"
+keyword_ranking="<nil>" limit=100
+query=ObjectSearch shard=multitenant_tenantA
+sort="[]" tenant=tenantA
+took="61.917µs"
+```
+:::
+
+:::note Prometheus Metrics
+If you have a Prometheus monitoring setup, you can check these key metrics:
+- `go_memstats_heap_inuse_bytes`: Overall memory footprint
+- `queries_durations_ms_bucket`: Query performance metrics
+- `batch_durations_ms`: Batch operation performance
 :::
 
 #### Through `pprof`
@@ -206,6 +224,55 @@ This ensures all shards are fully loaded before Weaviate reports itself as ready
 
 :::caution Important
 Only disable lazy shard loading for single-tenant collections. For multi-tenant deployments, keeping lazy loading enabled is recommended as it can significantly speed up the startup time.
+### Monitoring for Performance and Reliability
+
+Effective monitoring is crucial for maintaining the health, performance, and reliability of your Weaviate deployment. Here are key strategies and metrics to track:
+
+#### Recommended Monitoring Tools
+- **Prometheus**: Collect and store time-series metrics
+- **Grafana**: Visualize and create dashboards for your metrics
+- **Alerting systems**: Configure alerts based on critical thresholds
+
+#### Key Performance Metrics to Monitor
+- **Resource Utilization**:
+  - CPU usage (`container_cpu_usage_seconds_total`)
+  - Memory consumption (`go_memstats_heap_inuse_bytes`)
+  - Disk I/O performance (`container_fs_writes/read_bytes_total`)
+
+- **Query Performance**:
+  - Read query response times (`queries_durations_ms_bucket`)
+  - Batch operation durations (`batch_durations_ms`)
+  - Number of objects per collection (`object_count`)
+
+- **System Health**:
+  - Tenant states (`weaviate_schema_shards`)
+  - Container restart reasons
+  - Out of Memory (OOM) events
+
+#### Setting Up Effective Monitoring
+1. Enable Prometheus endpoint:
+   ```
+   PROMETHEUS_MONITORING_ENABLED=true
+   ```
+
+2. Configure alerting rules to catch potential issues early:
+   ```yaml
+   groups:
+     - name: weaviate-alerts
+       rules:
+         - alert: HighCPUUsage
+           expr: rate(process_cpu_seconds_total[5m]) > 0.9
+           for: 2m
+           labels:
+             severity: high
+           annotations:
+             summary: "High CPU Usage on {{ $labels.instance }}"
+             description: "CPU usage has exceeded 90% for 2 minutes"
+   ```
+
+:::tip Further Resources
+- [Monitoring Configuration](/deploy/configuration/monitoring.md)
+- [Available Metrics](/developers/weaviate/configuration/monitoring#obtainable-metrics)
 :::
 
 ## Data structures
