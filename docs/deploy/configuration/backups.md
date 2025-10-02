@@ -16,18 +16,22 @@ import GoCode from '!!raw-loader!/_includes/code/howto/go/docs/deploy/backups_te
 import JavaCode from '!!raw-loader!/_includes/code/howto/configure.backups.java';
 import CurlCode from '!!raw-loader!/_includes/code/howto/configure.backups.sh';
 
-Weaviate's Backup feature is designed to work natively with cloud technology. Most notably, it allows:
+Weaviate's Backup feature is designed to work natively with cloud technology and provides comprehensive data protection. Most notably, it allows:
 
 * Seamless integration with widely-used cloud blob storage, such as AWS S3, GCS, or Azure Storage
 * Backup and Restore between different storage providers
 * Single-command backup and restore
 * Choice of backing up an entire instance, or selected collections only
+* Support for different backup methods: Full Backup and upcoming Incremental Backup
 * Easy migration to new environments
+
+:::caution Important backup considerations
 
 :::caution Important backup considerations
 
 - **Version Requirements**: If you are running Weaviate `v1.23.12` or older, you must [update](/deploy/migration/index.md) to `v1.23.13` or higher before restoring a backup to prevent data corruption.
 - **[Multi-tenancy](/weaviate/concepts/data.md#multi-tenancy) limitations**: Backups will only include `active` tenants. `Inactive` or `offloaded` tenants in multi-tenant collections will not be included. Be sure to [activate](/weaviate/manage-collections/multi-tenancy.mdx#manage-tenant-states) any required tenants before creating a backup.
+- **Node Configuration Limitations**: Backups are tied to specific node configurations. You cannot restore a backup from a 3-node cluster to a single-node cluster.
 :::
 
 ## Backup Quickstart
@@ -113,12 +117,12 @@ The following sections provide more details on how to configure and use backups 
 
 Weaviate supports four backup storage options:
 
-| Provider | Module Name | Best For | Multi-Node Support |
-|----------|------------|-----------|-------------------|
-| AWS S3 | `backup-s3` | Production deployments, AWS environments | Yes |
-| Google Cloud Storage | `backup-gcs` | Production deployments, GCP environments | Yes |
-| Azure Storage | `backup-azure` | Production deployments, Azure environments | Yes |
-| Local Filesystem | `backup-filesystem` | Development, testing, single-node setups | No |
+|| Provider | Module Name | Best For | Multi-Node Support | Backup Methods |
+||----------|------------|-----------|-------------------|----------------|
+|| AWS S3 | `backup-s3` | Production deployments, AWS environments | Yes | Full Backup (Incremental Coming Soon) |
+|| Google Cloud Storage | `backup-gcs` | Production deployments, GCP environments | Yes | Full Backup (Incremental Coming Soon) |
+|| Azure Storage | `backup-azure` | Production deployments, Azure environments | Yes | Full Backup (Incremental Coming Soon) |
+|| Local Filesystem | `backup-filesystem` | Development, testing, single-node setups | No | Full Backup |
 
 To use any provider:
 1. Enable the module
@@ -608,21 +612,18 @@ These values are available under the `backups` key in the `values.yaml` file. Re
 
 ### Read & Write requests while a backup is running
 
-The backup process is designed to be minimally invasive to a running setup. Even on very large setups, where terabytes of data need to be copied, Weaviate stays available during backup. It even accepts write requests while a backup process is running. This sections explains how backups work under the hood and why Weaviate can safely accept writes while a backup is copied.
+The backup process is designed to be minimally invasive to a running setup. Even on very large setups, where terabytes of data need to be copied, Weaviate stays available during backup. It even accepts write requests while a backup process is running.
 
-Weaviate uses a custom [LSM Store](/weaviate/concepts/storage.md#object-and-inverted-index-store) for its object store and inverted index. LSM stores are a hybrid of immutable disk segments and an in-memory structure called a memtable that accepts all writes (including updates and deletes). Most of the time, files on disk are immutable, there are only three situations where files are changed:
+Weaviate uses a custom [LSM Store](/weaviate/concepts/storage.md#object-and-inverted-index-store) for its object store and inverted index. The LSM store's architecture ensures data immutability during backups through the following key mechanisms:
 
-1. Anytime a memtable is flushed. This creates a new segment. Existing segments are not changed.
-2. Any write into the memtable is also written into a Write-Ahead-Log (WAL). The WAL is only needed for disaster-recovery. Once a segment has been orderly flushed, the WAL can be discarded.
-3. There is an async background process called Compaction that optimizes existing segments. It can merge two small segments into a single larger segment and remove redundant data as part of the process.
+1. **Immutable Disk Segments**: Most files on disk are immutable, creating a consistent snapshot during backups.
+2. **Memtable Flushing**: Active memtables are quickly flushed to create stable disk segments.
+3. **Compaction Pause**: During backup, compaction processes are temporarily paused to prevent file modifications.
 
-Weaviate's Backup implementation makes use of the above properties in the following ways:
-
-1. Weaviate first flushes all active memtables to disk. This process takes in the 10s or 100s of milliseconds. Any pending write requests simply waits for a new memtable to be created without any failing requests or substantial delays.
-2. Now that the memtables are flushed, there is a guarantee: All data that should be part of the backup is present in the existing disk segments. Any data that will be imported after the backup request ends up in new disk segments. The backup references a list of immutable files.
-3. To prevent a compaction process from changing the files on disk while they are being copied, compactions are temporarily paused until all files have been copied. They are automatically resumed right after.
-
-This way the backup process can guarantee that the files that are transferred to the remote backend are immutable (and thus safe to copy) even with new writes coming in. Even if it takes minutes or hours to backup a very large setup, Weaviate stays available without any user impact while the backup process is running.
+This approach guarantees that:
+- Backup files are immutable and safe to copy
+- Write operations continue uninterrupted
+- No data loss or inconsistency occurs during the backup process
 
 It is not just safe - but even recommended - to create backups on live production instances while they are serving user requests.
 
@@ -632,21 +633,37 @@ The backup API is built in a way that no long-running network requests are requi
 
 If you would like your application to wait for the background backup process to complete, you can use the "wait for completion" feature that is present in all language clients. The clients will poll the status endpoint in the background and block until the status is either `SUCCESS` or `FAILED`. This makes it easy to write simple synchronous backup scripts, even with the async nature of the API.
 
-## Other Use cases
+## Other Use Cases
 
 ### Migrating to another environment
 
 The flexibility around backup providers opens up new use cases. Besides using the backup & restore feature for disaster recovery, you can also use it for duplicating environments or migrating between clusters.
 
-For example, consider the following situation: You would like to do a load test on production data. If you would do the load test in production it might affect users. An easy way to get meaningful results without affecting uses it to duplicate your entire environment. Once the new production-like "loadtest" environment is up, create a backup from your production environment and restore it into your "loadtest" environment. This even works if the production environment is running on a completely different cloud provider than the new environment.
+For example, consider the following situation: You would like to do a load test on production data. An easy way to get meaningful results without affecting users is to duplicate your entire environment. Once the new production-like "loadtest" environment is up, create a backup from your production environment and restore it into your "loadtest" environment. This even works if the production environment is running on a completely different cloud provider than the new environment.
 
-## Troubleshooting and notes
+### Disk Snapshots as Alternative Backup
 
+For large systems, you can also use disk snapshots as an alternative backup method:
+
+1. **Create a snapshot** using your cloud provider or disk management tool
+2. **Store the snapshot** in a secure location
+3. **Use the snapshot** to restore a new instance if needed
+
+Disk snapshots provide a full system backup including configurations and can be particularly useful for comprehensive system recovery.
+## Troubleshooting and Best Practices
+
+### Technical Notes
 - Single node backup is available starting in Weaviate `v1.15`. Multi-node backups is available starting in `v1.16`.
 - In some cases, backups can take a long time, or get "stuck", causing Weaviate to be unresponsive. If this happens, you can [cancel the backup](#cancel-backup) and try again.
 - If a backup module is misconfigured, such as having an invalid backup path, it can cause Weaviate to not start. Review the system logs for any errors.
 - RBAC roles and users are not restored by default. You need to enable them manually through the configuration properties when [restoring a backup](#restore-backup).
 
+### Backup Best Practices
+- 🔁 **Automate Backups**: Schedule regular backups to ensure consistent data protection
+- 🔒 **Secure Storage**: Store backups in secure and redundant locations
+- 📊 For large systems, rely on file system snapshots in addition to Weaviate backups
+- 📝 Maintain detailed logs of backup operations
+- 🕒 Test your backup and restore processes regularly to ensure reliability
 ## Related pages
 - <SkipLink href="/weaviate/api/rest#tag/backups">References: REST API: Backups</SkipLink>
 

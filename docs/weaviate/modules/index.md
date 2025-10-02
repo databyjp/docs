@@ -75,30 +75,73 @@ For example:
 
 ## Backup Modules
 
-Backup and restore operations in Weaviate are facilitated by the use of backup provider modules.
+Backup modules in Weaviate provide comprehensive data protection mechanisms to safeguard your vector database and ensure business continuity.
 
-These are interchangeable storage backends which exist either internally or externally.
+### Backup Methods
 
-### External provider
+Weaviate supports two primary backup strategies:
 
-External backup providers coordinate the storage and retrieval of backed-up Weaviate data with external storage services.
+1. **Full Backup**
+   - Captures all data, including:
+     - Vector objects
+     - Schemas
+     - Metadata
+   - Creates a complete snapshot of the entire database
+   - Recommended for comprehensive data protection
 
-This type of provider is ideal for production environments. This is because storing the backup data outside of a Weaviate instance decouples the availability of the backup from the Weaviate instance itself. In the event of an unreachable node, the backup is still available.
+2. **Incremental Backup** (Planned Future Feature)
+   - Will save only changed data since the last backup
+   - Reduces backup storage requirements and time
+   - Currently in roadmap, not yet implemented
 
-Additionally, multi-node Weaviate clusters _require_ the use of an external provider. Storing a multi-node backup on internally on a single node presents several issues, like significantly reducing the durability and availability of the backup, and is not supported.
+### Backup Provider Types
 
-The supported external backup providers are:
-- [S3](/deploy/configuration/backups.md#s3-aws-or-s3-compatible)
-- [GCS](/deploy/configuration/backups.md#gcs-google-cloud-storage)
-- [Azure](/deploy/configuration/backups.md#azure-storage)
+Weaviate offers two types of backup providers to suit different deployment needs:
 
-Thanks to the extensibility of the module system, new providers can be readily added. If you are interested in an external provider other than the ones listed above, feel free to reach out via our [forum](https://forum.weaviate.io/), or open an issue on [GitHub](https://github.com/weaviate/weaviate).
+#### External Providers
+- **Recommended for Production Environments**
+- Store backup data outside of the Weaviate instance
+- Ensure backup availability even if a Weaviate node becomes unreachable
+- **Required for Multi-Node Clusters**
+- Supported External Backends:
+  - Amazon S3 (AWS or S3-compatible)
+  - Google Cloud Storage (GCS)
+  - Microsoft Azure Blob Storage
 
-### Internal provider
+#### Internal Providers
+- Intended for Development and Experimental Use
+- Store backup data within the Weaviate instance
+- **Not Recommended for Production**
+- **Not Compatible with Multi-Node Deployments**
+- Currently Supported:
+  - Filesystem Provider
 
-Internal providers coordinate the storage and retrieval of backed-up Weaviate data within a Weaviate instance. This type of provider is intended for developmental or experimental use, and is not recommended for production. Internal Providers are not compatible for multi-node backups, which require the use of an external provider.
+### Backup Module Characteristics
 
-As of Weaviate `v1.16`, the only supported internal backup provider is the [filesystem](/deploy/configuration/backups.md#filesystem) provider.
+- **Asynchronous Backup Process**
+  - Designed to be resilient to network interruptions
+  - Can handle partial network failures during backup
+  - Provides status tracking for backup operations
+
+- **Backup Considerations**
+  - Multi-node clusters require external providers
+  - Backups capture the state of active tenants
+  - LSM Compactions are temporarily paused during backup
+  - Backups are tied to specific node configurations
+
+### Choosing a Backup Provider
+
+When selecting a backup provider, consider:
+- Deployment environment (development vs. production)
+- Cluster configuration (single-node vs. multi-node)
+- Compliance and data sovereignty requirements
+- Storage cost and performance
+
+### More Information
+
+For detailed backup configuration and usage, refer to the [Backup Configuration Documentation](/deploy/configuration/backups.md).
+
+Thanks to the extensibility of the module system, new providers can be readily added. If you are interested in an external provider other than those listed, feel free to reach out via our [forum](https://forum.weaviate.io/) or [GitHub](https://github.com/weaviate/weaviate).
 
 ## Offloading Modules
 
