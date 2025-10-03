@@ -8,7 +8,6 @@ image: og/docs/tutorials.jpg
 import SkipLink from '/src/components/SkipValidationLink'
 import UpdateInProgressNote from '/_includes/update-in-progress.mdx';
 
-<UpdateInProgressNote />
 
 import CrossReferencePerformanceNote from '/_includes/cross-reference-performance-note.mdx';
 
@@ -214,6 +213,55 @@ For further information on how to manage cross-references, see the [how-to guide
 - [Create a cross-reference](../manage-collections/cross-references.mdx#add-a-one-way-cross-reference)
 - [Update a cross-reference](../manage-collections/cross-references.mdx#update-a-cross-reference)
 - [Delete a cross-reference](../manage-collections/cross-references.mdx#delete-a-cross-reference)
+
+## Performance and Scalability
+
+### When to Use Cross-References
+
+Cross-references are best suited for:
+- Relationships with infrequent filtering needs
+- Low-query-per-second (QPS) environments
+- Scenarios with minimal performance requirements
+
+### When to Avoid Cross-References
+
+Avoid cross-references when:
+- You need high-performance queries
+- Filtering on related objects is crucial
+- You have high QPS requirements
+
+### Scalability Considerations
+
+Consider these alternatives:
+
+1. **Embedding Related Data**
+   ```json
+   {
+     "title": "The Great Gatsby",
+     "authorFirstName": "F. Scott",
+     "authorLastName": "Fitzgerald"
+   }
+   ```
+   - Pros: Fast read performance
+   - Cons: Slow writes, limited filter capabilities
+
+2. **Denormalized Data Model**
+   ```json
+   {
+     "title": "The Great Gatsby",
+     "author": {
+       "firstName": "F. Scott",
+       "lastName": "Fitzgerald"
+     }
+   }
+   ```
+   - Pros: Fast reads
+   - Cons: Slow writes, cannot filter by author characteristics
+
+:::tip Performance Trade-offs
+
+Choose your data modeling strategy based on your specific performance, query, and write requirements. Each approach has its strengths and limitations.
+:::
 - [Retrieve a cross-reference](../manage-collections/cross-references.mdx#read-cross-references)
 
 :::info Related pages
