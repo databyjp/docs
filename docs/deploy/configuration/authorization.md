@@ -92,6 +92,36 @@ Role-based access control (RBAC) is generally available in Weaviate from version
 
 Role-based access control (RBAC) is a method of restricting access to resources based on the roles of users. In Weaviate, RBAC allows you to define **roles** and assign **permissions** to those roles. Users can then be assigned to roles, and inherit the permissions associated with those roles.
 
+
+## Migrating to RBAC
+
+### Transition Strategies
+
+When moving from Admin List to RBAC:
+
+1. **Gradual Migration**:
+   - Keep existing Admin List configurations
+   - Incrementally add RBAC roles
+   - Test thoroughly before full cutover
+
+2. **Role Mapping**:
+   - Map existing admin/read-only users to equivalent RBAC roles
+   - Example mapping:
+     ```
+     Admin List 'admin' users → 'admin' RBAC role
+     Admin List 'read-only' users → 'viewer' RBAC role
+     ```
+
+3. **Validation Checklist**:
+   - [ ] Verify all existing permissions are covered
+   - [ ] Test access for each migrated user
+   - [ ] Ensure no permission gaps exist
+
+:::warning Migration Considerations
+- Perform migration during maintenance window
+- Have rollback plan
+- Communicate changes to all users
+:::
 Check out the dedicated **[RBAC documentation](/weaviate/configuration/rbac/index.mdx)** for instructions on how to [configure RBAC](/deploy/configuration/configuring-rbac.md) in your Weaviate instance and examples on how to [manage roles an users](/weaviate/configuration/rbac/manage-roles.mdx).
 
 ## Admin list
@@ -176,6 +206,77 @@ authorization:
 
 ### Anonymous users
 
+Anonymous users are identified as `anonymous` in Weaviate. In the Admin list authorization scheme, you can apply permissions to anonymous users. The RBAC authorization scheme is not compatible with anonymous users.
+
+### Best Practices for Anonymous Access
+
+:::danger Security Warning
+Anonymous access should ONLY be used in controlled, non-production environments.
+
+Recommended restrictions:
+- Limit to read-only operations
+- Use strict IP whitelisting
+- Monitor and log all anonymous access attempts
+:::
+
+#### Secure Anonymous Access Configuration
+
+To confer permissions to anonymous users in the Admin list scheme, you can use the `anonymous` keyword in the configuration as shown below.
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+<Tabs groupId="platforms">
+
+  <TabItem value="docker" label="Docker">
+
+```yaml
+services:
+  weaviate:
+    environment:
+      # Enable anonymous access
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+
+      # Authorization configuration
+      AUTHORIZATION_ADMINLIST_ENABLED: 'true'
+      AUTHORIZATION_ADMINLIST_READONLY_USERS: 'anonymous'
+
+      # Optional: Additional security constraints
+      # Example: Limit authentication to specific IP ranges
+      AUTHENTICATION_ALLOWED_IPS: '127.0.0.1,192.168.1.0/24'
+```
+
+  </TabItem>
+
+  <TabItem value="kubernetes" label="Kubernetes">
+
+```yaml
+authentication:
+  # Enable anonymous access
+  anonymous_access:
+    enabled: true
+
+authorization:
+  admin_list:
+    enabled: true
+    read_only_users:
+    - anonymous
+
+    # Optional: IP-based restrictions
+    allowed_ips:
+    - '127.0.0.1'  # localhost only
+    - '192.168.1.0/24'  # Local network
+```
+
+  </TabItem>
+
+</Tabs>
+
+#### Monitoring and Logging
+
+- Implement comprehensive logging for anonymous access attempts
+- Set up alerts for unexpected or suspicious anonymous access
+- Regularly review and audit anonymous access logs
 Anonymous users are identified as `anonymous` in Weaviate. In the Admin list authorization scheme, you can apply permissions to anonymous users. The RBAC authorization scheme is not compatible with anonymous users.
 
 To confer permissions to anonymous users in the Admin list scheme, you can use the `anonymous` keyword in the configuration as shown below.
