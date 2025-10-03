@@ -16,22 +16,37 @@ import GoCode from '!!raw-loader!/_includes/code/howto/go/docs/deploy/backups_te
 import JavaCode from '!!raw-loader!/_includes/code/howto/configure.backups.java';
 import CurlCode from '!!raw-loader!/_includes/code/howto/configure.backups.sh';
 
-Weaviate's Backup feature is designed to work natively with cloud technology. Most notably, it allows:
+Weaviate's Backup feature is designed to safeguard your vector database, providing a robust mechanism to ensure data can be restored in case of logical failure, such as collection deletion. The backup functionality offers:
 
+* A critical safety net to prevent data loss
 * Seamless integration with widely-used cloud blob storage, such as AWS S3, GCS, or Azure Storage
 * Backup and Restore between different storage providers
-* Single-command backup and restore
-* Choice of backing up an entire instance, or selected collections only
+* Single-command backup and restore process
+* Flexibility to backup an entire instance or selected collections
 * Easy migration to new environments
 
 :::caution Important backup considerations
 
 - **Version Requirements**: If you are running Weaviate `v1.23.12` or older, you must [update](/deploy/migration/index.md) to `v1.23.13` or higher before restoring a backup to prevent data corruption.
 - **[Multi-tenancy](/weaviate/concepts/data.md#multi-tenancy) limitations**: Backups will only include `active` tenants. `Inactive` or `offloaded` tenants in multi-tenant collections will not be included. Be sure to [activate](/weaviate/manage-collections/multi-tenancy.mdx#manage-tenant-states) any required tenants before creating a backup.
+
+## Why Backups are Critical
+
+Backups are essential for maintaining the integrity and availability of your vector database. They provide several key benefits:
+
+- **Prevent Data Loss**: Protect against accidental deletions, human errors, or unexpected system failures
+- **Disaster Recovery**: Ensure quick restoration of data in case of critical incidents
+- **Compliance**: Meet regulatory requirements for data preservation and recoverability
+- **Business Continuity**: Minimize downtime and maintain operational resilience
+- **Flexible Migration**: Easily move or replicate your data across different environments
+
 :::
 
 ## Backup Quickstart
 
+This quickstart demonstrates using backups in Weaviate using the local filesystem as a backup provider, which is suitable for development and testing environments.
+
+> **Note**: While local filesystem backups are convenient for development, production environments should utilize cloud storage backends like AWS S3, Google Cloud Storage, or Azure Storage to ensure robust and scalable backup solutions.
 This quickstart demonstrates using backups in Weaviate using the local filesystem as a backup provider, which is suitable for development and testing environments.
 
 ### 1. Configure Weaviate
@@ -608,6 +623,35 @@ These values are available under the `backups` key in the `values.yaml` file. Re
 
 ### Read & Write requests while a backup is running
 
+Weaviate's backup process is designed to be minimally invasive and highly available. Even during large backups involving terabytes of data, Weaviate remains fully operational and can continue accepting write requests. This is achieved through a sophisticated approach leveraging Weaviate's custom LSM (Log-Structured Merge) Store.
+
+#### How Backup Availability Works
+
+1. **Immutable Disk Segments**: Weaviate uses a storage model where most disk files are immutable, which allows for safe backup without disrupting ongoing operations.
+
+2. **Memtable Flushing**: When a backup is initiated, all active memtables are quickly flushed to disk. This process takes milliseconds, and any pending write requests simply wait for a new memtable to be created.
+
+3. **Compaction Pause**: To prevent file changes during backup, compaction processes are temporarily paused until all files have been copied.
+
+### Async Nature of Backup API
+
+The backup API is designed for resilience and flexibility:
+
+- Backup creation requests return immediately after basic validation
+- Status can be checked through a polling endpoint
+- All language clients provide a "wait for completion" feature
+
+This design ensures that backups can be initiated and monitored without blocking application operations, making it ideal for production environments.
+
+#### Key Benefits of the Async Approach
+- Resilient to network or client failures
+- Supports long-running backups without connection timeouts
+- Allows easy integration into existing workflows
+- Provides granular control over backup monitoring
+## Technical Considerations
+
+### Read & Write requests while a backup is running
+
 The backup process is designed to be minimally invasive to a running setup. Even on very large setups, where terabytes of data need to be copied, Weaviate stays available during backup. It even accepts write requests while a backup process is running. This sections explains how backups work under the hood and why Weaviate can safely accept writes while a backup is copied.
 
 Weaviate uses a custom [LSM Store](/weaviate/concepts/storage.md#object-and-inverted-index-store) for its object store and inverted index. LSM stores are a hybrid of immutable disk segments and an in-memory structure called a memtable that accepts all writes (including updates and deletes). Most of the time, files on disk are immutable, there are only three situations where files are changed:
@@ -645,6 +689,41 @@ For example, consider the following situation: You would like to do a load test 
 - Single node backup is available starting in Weaviate `v1.15`. Multi-node backups is available starting in `v1.16`.
 - In some cases, backups can take a long time, or get "stuck", causing Weaviate to be unresponsive. If this happens, you can [cancel the backup](#cancel-backup) and try again.
 - If a backup module is misconfigured, such as having an invalid backup path, it can cause Weaviate to not start. Review the system logs for any errors.
+
+## Best Practices for Backups
+
+### Backup Management Recommendations
+
+1. **Automate Backup Schedules**
+   - Set up regular, automated backup processes
+   - Use cron jobs or cloud scheduling services to ensure consistent backups
+
+2. **Secure Storage**
+   - Store backups in secure, redundant locations
+   - Use cloud storage with built-in encryption and access controls
+   - Consider geographical distribution for added resilience
+
+3. **Large System Considerations**
+   - For extensive systems, leverage file system snapshots
+   - Consider incremental backup strategies to minimize storage overhead
+
+4. **Logging and Monitoring**
+   - Maintain comprehensive logs of all backup operations
+   - Track backup success rates, durations, and any errors
+   - Set up alerts for backup failures or anomalies
+
+5. **Backup Verification**
+   - Periodically test restore procedures
+   - Validate backup integrity and completeness
+   - Ensure backups can be successfully restored in different environments
+
+### Recommended Backup Workflow
+
+1. Choose an appropriate backup backend (S3, GCS, Azure)
+2. Configure automated, regular backups
+3. Store backups in secure, redundant locations
+4. Regularly test and validate backup and restore processes
+5. Monitor backup logs and set up alerting mechanisms
 - RBAC roles and users are not restored by default. You need to enable them manually through the configuration properties when [restoring a backup](#restore-backup).
 
 ## Related pages
