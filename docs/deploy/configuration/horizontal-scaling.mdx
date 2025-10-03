@@ -354,6 +354,81 @@ In a highly available environment, combining sharding and replication leverages 
 capabilities of both methods to be a dynamic duo that keeps your deployment highly available.
 If given the opportunity, those two techniques will be your deployment's dynamic duo.
 Specifically using the [`ASYNC_REPLICATION` environment variables](./async-rep.md) introduced in the 1.29 release
+
+## Combining Sharding and Replication
+
+### Synergistic Configuration Example
+
+Here's a comprehensive example showcasing how to combine sharding and replication for a scalable, highly available collection:
+
+<Tabs groupId="languages">
+  <TabItem value="py" label="Python">
+```python
+client.collections.create(
+    name="ScalableCollection",
+    vectorizer_config=vectorizer,
+    replication_config=Configure.replication(
+        factor=3,              # Three copies of data
+        async_enabled=True,    # Background replication
+        deletion_strategy=ReplicationDeletionStrategy.TIME_BASED_RESOLUTION
+    ),
+    sharding_config=Configure.sharding(
+        desired_count=4,       # 4 physical shards
+        virtual_per_physical=128  # Default virtual shard configuration
+    )
+)
+```
+  </TabItem>
+  <TabItem value="ts" label="TypeScript">
+```typescript
+client.collections.create({
+    name: "ScalableCollection",
+    vectorizerConfig: vectorizer,
+    replicationConfig: {
+        factor: 3,
+        asyncEnabled: true,
+        deletionStrategy: ReplicationDeletionStrategy.TIME_BASED_RESOLUTION
+    },
+    shardingConfig: {
+        desiredCount: 4,
+        virtualPerPhysical: 128
+    }
+})
+```
+  </TabItem>
+</Tabs>
+
+### Production Deployment Considerations
+
+When combining sharding and replication, consider these key factors:
+
+1. **Performance Improvements**
+   - Sharding distributes data across multiple nodes
+   - Replication provides read scalability
+   - Combined approach enables parallel processing and redundancy
+
+2. **Fault Tolerance**
+   - Multiple replicas protect against node failures
+   - Sharding prevents single point of data loss
+   - Recommended minimum: 3-node cluster with replication factor of 3
+
+3. **Scalability**
+   - Easily scale horizontally by adding nodes
+   - Dynamic shard redistribution
+   - Flexible replication strategies
+
+4. **Ideal Use Cases**
+   - Large-scale machine learning datasets
+   - Multi-tenant applications
+   - High-traffic recommendation systems
+   - Geographically distributed applications
+
+### Best Practices
+
+- Start with a modest configuration
+- Monitor performance and adjust shard/replica count
+- Use async replication for write-heavy workloads
+- Implement gradual scaling strategies
 will allow you to unleash the full power of horizontal scaling!
 
 ## Questions and feedback

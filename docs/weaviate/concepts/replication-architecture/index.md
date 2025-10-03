@@ -136,6 +136,16 @@ Replication and sharding can be combined in a setup, to improve throughput and a
 
 ### Cluster metadata replication
 
+Weaviate's cluster metadata changes are managed through the Raft consensus algorithm to provide strong consistency across the cluster. Raft is a distributed consensus protocol that ensures reliable metadata replication with the following key characteristics:
+
+- **Leader-Follower Model**: In Raft, one node is elected as the leader responsible for managing all metadata changes.
+- **Leader Election**: Nodes participate in a voting process to elect a leader. If the current leader fails, a new leader is automatically selected through a democratic voting mechanism.
+- **Quorum-Based Commitment**: Changes to cluster metadata (such as collection definitions and tenant activity statuses) are only committed when a majority of nodes approve the change.
+- **Automatic Recovery**: If the leader node fails, the system can quickly elect a new leader, ensuring continuous operation.
+
+This approach ensures that cluster metadata remains consistent and highly available, even in the face of node failures.
+### Cluster metadata replication
+
 Weaviate’s cluster metadata changes are managed through Raft to provide consistency across the cluster. (This includes collection definitions and tenant activity statuses.)
 
 From Weaviate `v1.25`, cluster metadata changes are committed using the Raft consensus algorithm. Raft is a leader-based consensus algorithm. A leader node is responsible for cluster metadata changes. Raft ensures that these changes are consistent across the cluster, even in the event of (a minority of) node failures.
@@ -154,16 +164,86 @@ If you are using Weaviate `v1.24` or earlier, you can [upgrade to `v1.25`](/depl
 
 ### Data replication
 
+Weaviate implements a leaderless replication design that prioritizes availability and provides flexible consistency options:
+
+#### Leaderless Replication Benefits
+- **No Single Point of Failure**: Any node can accept read and write operations
+- **Improved Fault Tolerance**: System remains operational even if some nodes are down
+- **Scalable Write Performance**: Distribute write operations across multiple nodes
+
+#### Tunable Consistency Levels
+Weaviate offers three consistency levels for read and write operations:
+- `ONE`: Operation is acknowledged by a single replica (fastest, lowest consistency)
+- `QUORUM`: Operation requires acknowledgment from a majority of replicas (balanced approach)
+- `ALL`: Operation must be acknowledged by every replica (highest consistency, slowest)
+
+#### Async Replication
+- Background replication process can be enabled for collections
+- Configurable async replication frequency
+- Automatic conflict resolution using last-write-wins strategy
+
+The number of replicas can be configured independently of the total number of nodes in the cluster, providing flexibility in designing your data distribution strategy.
+### Data replication
+
 In Weaviate, availability is generally favored over consistency. Weaviate's data replication uses a leaderless design, which means there are no primary and secondary nodes. When writing and reading data, the client contacts one or more nodes. A load balancer exists between the user and the nodes, so the user doesn't know which node they are talking to (Weaviate will forward internally if a user is requesting a wrong node).
 
 The number of nodes that need to acknowledge the read or write (from v1.18) operation is tunable, to `ONE`, `QUORUM` (n/2+1) or `ALL`. When write operations are carried out with consistency level `ALL`, the database works synchronously. If write is not set to `ALL` (possible from v1.18), writing data is asynchronous from the user's perspective.
 
+
+### Deletion Resolution Strategies
+
+When conflicts occur during replication, Weaviate provides three strategies for resolving deletion operations:
+
+1. **`NoAutomatedResolution`** (Default)
+   - Always restores deleted objects
+   - Ensures data is not accidentally lost
+   - Prioritizes data preservation
+
+2. **`DeleteOnConflict`**
+   - Automatically deletes objects in case of a conflict
+   - Useful when you want to ensure clean, conflict-free data
+   - Prevents data duplication
+
+3. **`TimeBasedResolution`**
+   - Resolves conflicts based on timestamp
+   - The most recent delete or write operation takes precedence
+   - Provides a time-ordered approach to conflict resolution
+
+You can specify the deletion strategy when configuring replication for a collection.
 The number of replicas doesn't have to match the number of nodes (cluster size). It is possible to split data in Weaviate based on collections. Note that this is [different from Sharding](#replication-vs-sharding).
 
 Read more about how replication works in Weaviate in [Philosophy](./philosophy.md), [Cluster Architecture](./cluster-architecture.md) and [Consistency](./consistency.md).
 
 ## How do I use replication in Weaviate?
 
+
+## How do I use replication in Weaviate?
+
+### Replication Configuration Example
+
+You can configure replication settings when defining a collection:
+
+```python
+from weaviate import Configure
+
+replication_config = Configure.replication(
+    factor=3,                   # Number of replica copies
+    async_enabled=True,         # Enable background replication
+    deletion_strategy=Configure.ReplicationDeletionStrategy.TIME_BASED_RESOLUTION
+)
+
+client.collections.create(
+    name="MyCollection",
+    replication_config=replication_config
+)
+```
+
+This example demonstrates:
+- Setting a replication factor of 3
+- Enabling asynchronous replication
+- Using time-based deletion resolution strategy
+
+See [how to configure replication](/deploy/configuration/replication.md). You can enable replication in the collection definition. In queries, you can [specify the desired consistency level](../../search/basics.md#replication).
 See [how to configure replication](/deploy/configuration/replication.md). You can enable replication in the collection definition. In queries, you can [specify the desired consistency level](../../search/basics.md#replication).
 
 ## Roadmap
