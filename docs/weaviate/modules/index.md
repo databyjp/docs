@@ -79,6 +79,28 @@ Backup and restore operations in Weaviate are facilitated by the use of backup p
 
 These are interchangeable storage backends which exist either internally or externally.
 
+### External Provider
+
+External backup providers are **critical for robust, production-grade data protection**. These providers coordinate the storage and retrieval of backed-up Weaviate data through external storage services, offering several key advantages:
+
+- **High Availability**: By storing backup data outside the Weaviate instance, you decouple backup accessibility from the primary system's health.
+- **Disaster Recovery**: External providers ensure your data can be restored even if the original Weaviate instance becomes unavailable.
+
+#### Multi-Node Cluster Requirements
+
+For multi-node Weaviate clusters, external providers are **mandatory**. Internal backups are not supported because:
+- They significantly reduce backup durability
+- Cannot guarantee data consistency across all cluster nodes
+- Pose risks of incomplete or partial data recovery
+
+#### Supported External Providers
+
+Weaviate currently supports the following external backup providers:
+- [S3](/deploy/configuration/backups.md#s3-aws-or-s3-compatible): Amazon S3 and S3-compatible storage
+- [GCS](/deploy/configuration/backups.md#gcs-google-cloud-storage): Google Cloud Storage
+- [Azure](/deploy/configuration/backups.md#azure-storage): Microsoft Azure Blob Storage
+
+The module system is extensible, so if you require a provider not listed here, we encourage you to [reach out via our forum](https://forum.weaviate.io/) or [open an issue on GitHub](https://github.com/weaviate/weaviate).
 ### External provider
 
 External backup providers coordinate the storage and retrieval of backed-up Weaviate data with external storage services.
@@ -94,10 +116,25 @@ The supported external backup providers are:
 
 Thanks to the extensibility of the module system, new providers can be readily added. If you are interested in an external provider other than the ones listed above, feel free to reach out via our [forum](https://forum.weaviate.io/), or open an issue on [GitHub](https://github.com/weaviate/weaviate).
 
-### Internal provider
+### Internal Provider
 
-Internal providers coordinate the storage and retrieval of backed-up Weaviate data within a Weaviate instance. This type of provider is intended for developmental or experimental use, and is not recommended for production. Internal Providers are not compatible for multi-node backups, which require the use of an external provider.
+⚠️ **Warning**: Internal backup providers are designed **exclusively for development and testing purposes**. They are not recommended for production environments.
 
+Key limitations of internal providers include:
+- Not suitable for multi-node Weaviate clusters
+- Limited data protection compared to external providers
+- Potential data loss risks in case of system failures
+
+As of Weaviate `v1.16`, the only supported internal backup provider is the [filesystem](/deploy/configuration/backups.md#filesystem) provider. Use this provider only in local development or testing scenarios.
+### Technical Considerations for Backups
+
+#### Backup Process Characteristics
+
+- **LSM Compactions Pausing**: During backup operations, Weaviate temporarily pauses Log-Structured Merge (LSM) compactions to ensure data consistency.
+- **Non-Disruptive Backups**: Backups can be performed without interrupting ongoing read or write operations in your Weaviate instance.
+- **Immutable Disk Segments**: Backups leverage Weaviate's immutable disk segment architecture, which ensures data integrity during the backup process.
+
+> 💡 **Pro Tip**: For comprehensive backup configuration details, always refer to the [main backups configuration page](/deploy/configuration/backups.md).
 As of Weaviate `v1.16`, the only supported internal backup provider is the [filesystem](/deploy/configuration/backups.md#filesystem) provider.
 
 ## Offloading Modules
