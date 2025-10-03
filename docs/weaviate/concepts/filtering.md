@@ -43,6 +43,17 @@ As of `v1.27`, Weaviate supports two filter strategies: `sweeping` and `acorn` s
 
 Weaviate `1.27` adds the a new filtering algorithm that is based on the [`ACORN`](https://arxiv.org/html/2403.04871v1) paper. We refer to this as `ACORN`, but the actual implementation in Weaviate is a custom implementation that is inspired by the paper. (References to `ACORN` in this document refer to the Weaviate implementation.)
 
+The `ACORN` algorithm is designed to speed up filtered searches with the [HNSW index](./indexing/vector-index.md#hierarchical-navigable-small-world-hnsw-index) through several innovative techniques:
+
+- **Multi-Hop Traversal**: Instead of a linear search path, ACORN uses a multi-hop approach that allows faster navigation through the vector graph. This means the algorithm can quickly jump between graph layers and neighborhoods that are more likely to contain relevant filtered results.
+
+- **Smart Candidate Evaluation**: Objects that do not meet the filters are pruned early in the distance calculation process, reducing unnecessary computational overhead.
+
+- **Dynamic Entry Point Seeding**: The algorithm randomly seeds additional entry points that match the filter conditions. These strategically placed entry points help the search converge faster to the most relevant filtered zone of the vector space.
+
+- **Adaptive Graph Traversal**: By dynamically adjusting the search strategy based on filter characteristics, ACORN can handle varying filter selectivities more efficiently.
+
+Our benchmarks show that for filters with low correlation to the query vector (excluding 30-70% of potential candidates), ACORN can provide performance improvements ranging from 2x to 10x, especially in large datasets spanning millions of vectors.
 The `ACORN` algorithm is designed to speed up filtered searches with the [HNSW index](./indexing/vector-index.md#hierarchical-navigable-small-world-hnsw-index) by the following:
 
 - Objects that do not meet the filters are ignored in distance calculations.
@@ -53,8 +64,55 @@ The `ACORN` algorithm is especially useful when the filter has low correlation w
 
 Our internal testing indicates that for lowly correlated, restrictive filters, the `ACORN` algorithm can be significantly faster, especially for large datasets. If this has been a bottleneck for your use case, we recommend enabling the `ACORN` algorithm.
 
+Here's an example of enabling ACORN in a collection with a large, complex dataset:
+
+```python
+client.collections.create(
+    name='LargeProductCatalog',
+    vectorizer_config=Configure.Vectorizer.text2vec_openai(),
+    vector_index_config=Configure.VectorIndex.hnsw(
+        # Enable ACORN for optimized filtered vector search
+        filter_strategy=VectorFilterStrategy.ACORN
+    )
+)
+```
+
+This configuration is particularly beneficial in scenarios such as:
+- E-commerce product search with complex, multi-attribute filters
+- Large scientific literature databases with restrictive research area filters
+- Recommendation systems with highly specific user preference constraints
 As of `v1.27`, the `ACORN` algorithm can be enabled by setting the `filterStrategy` field for the relevant HNSW vector index [in the collection configuration](../manage-collections/vector-config.mdx#set-vector-index-parameters).
 
+### Sweeping (Default Strategy)
+
+The existing default filter strategy is referred to as `sweeping`. This traditional approach works as follows:
+
+- Starts at the root node of the HNSW graph
+- Traverses the graph linearly, evaluating each node's distance to the query vector
+- Maintains an "allow list" of filterable candidates
+- Skips nodes that do not meet filter conditions
+- Continues traversal until desired results are reached
+
+#### When to Use Sweeping
+- Smaller to medium-sized datasets
+- Filters with high correlation to query vector
+- When filter conditions are less restrictive
+
+### ACORN (Recommended for Large, Complex Datasets)
+
+The newer `ACORN` strategy introduces advanced filtering techniques:
+
+- Uses multi-hop graph traversal
+- Dynamically seeds additional entry points
+- Prunes non-matching candidates more aggressively
+
+#### When to Use ACORN
+- Large datasets (100k+ vectors)
+- Complex, low-correlation filters
+- Scenarios with highly selective filtering requirements
+- Performance-critical applications
+
+**Recommendation**: Start with the default `sweeping` strategy, and switch to `ACORN` if you observe performance bottlenecks, especially with restrictive filters.
 ### Sweeping
 
 The existing and current default filter strategy in Weaviate is referred to as `sweeping`. This strategy is based on the concept of "sweeping" through the HNSW graph.
