@@ -24,6 +24,37 @@ Use cross-references to establish directional relationships between collections.
     Additional information
   </summary>
 
+## Performance Considerations
+
+Cross-references can have significant performance implications that should be carefully considered:
+
+### Query Performance Impact
+- Queries involving multiple levels of cross-references can severely impact performance
+- Filtered cross-reference searches are particularly expensive and can dramatically slow down query execution
+- The performance overhead increases exponentially with the depth and complexity of cross-references
+
+### Scalability Considerations
+- At larger scales (1 billion+ vectors), cross-references can introduce substantial computational overhead
+- The performance impact is more pronounced in scenarios with:
+  - High-frequency queries
+  - Complex multi-level reference traversals
+  - Large numbers of cross-referenced objects
+
+### Architectural Performance Factors
+- Performance is directly affected by:
+  - Sharding configurations
+  - Replication strategies
+  - Index design
+
+### Best Practices
+- **Limit cross-reference depth** to a single level when possible
+- **Denormalize for read-heavy workloads**
+- Use **batch operations** when creating multiple references
+- **Plan your data model carefully** before implementing cross-references
+- Consider alternative data modeling techniques if cross-references introduce significant performance bottlenecks
+
+> **Note**: Always profile and benchmark your specific use case to understand the exact performance characteristics of your cross-reference implementation.
+
 Notes:
 - Cross-references does not affect object vectors of the source or the target objects.
 - For multi-tenancy collection, you can establish a cross-reference from a multi-tenancy collection object to:
