@@ -49,6 +49,14 @@ Sharding divides data across nodes, it is useful when your dataset is too large 
   <thead>
     <tr>
       <th>Requirement/Goal</th>
+
+### Memory Considerations in Scaling
+
+When scaling your Weaviate deployment, memory management becomes crucial. The HNSW index must fit entirely in memory. A rough estimate for memory usage is:
+$2 * numDimensions * numVectors * 4B$
+
+For example, 100M vectors with 512 dimensions would require approximately 400GiB of memory. It's recommended to keep 20% extra memory for page cache and additional requirements.
+
       <th>Sharding</th>
       <th>Replication</th>
       <th>Both Combined</th>
@@ -252,6 +260,14 @@ Sharding divides data across nodes, it is useful when your dataset is too large 
 
 ### Sharding: Divide and Conquer
 
+#### Memory Optimization Strategies
+
+When implementing sharding, consider these techniques to manage memory usage:
+- Use vector compression techniques
+- Reduce vector dimensionality using Principal Component Analysis (PCA)
+- Adjust `maxConnections` and increase `ef` and `efConstruction` parameters
+
+
 You've made the decision to shard your data, now let's get it configured:
 
 
@@ -287,6 +303,11 @@ These parameters are used to configure your collection shards:
 | `virtualPerPhysical`  | integer | *Immutable, Optional*. Defines how many virtual shards correspond to one physical shard, defaulting to `128`.                                                                                                               |
 | `desiredVirtualCount` | integer | *Read-only*. Shows the target total number of virtual shards, calculated as `desiredCount * virtualPerPhysical`.                                                                                                                                                                                    |
 
+
+
+#### Async Replication Performance
+
+Utilize the `ASYNC_REPLICATION` environment variables to optimize replication performance. This can help improve write throughput and reduce latency in distributed deployments.
 
 ### Replication: An army of clones
 
