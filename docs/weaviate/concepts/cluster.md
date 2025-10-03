@@ -12,6 +12,29 @@ Weaviate can be scaled horizontally by being run on a set of multiple nodes in a
 
 ### Shards
 
+A collection in Weaviate comprises one or more shards, which are the basic units of data storage and retrieval. Each shard contains its own vector index, inverted indexes, and object store.
+
+Key shard characteristics:
+- Uses **consistent hashing** for distributing data across nodes
+- Supports **virtual shards** (128 virtual shards per physical shard)
+- Distribution method allows for flexible and efficient data placement
+
+![Shards explained](./img/shards_explained.png)
+
+The number of unique shards in a single-tenant collection can only be set at collection creation time. In most cases, letting Weaviate manage the number of shards is sufficient.
+
+In a multi-tenant collection, each tenant consists of one shard. However, be cautious about shard management:
+- Not recommended to have more than 50,000+ active shards per node
+- Potential performance imbalance if tenant scales differ significantly
+
+![Shards in collections](./img/shards_in_collections.png)
+
+**Best Practices for Sharding:**
+- Create one shard for each 100M vectors in a collection
+- Consider using binary quantization for multi-tenant scenarios with small per-tenant datasets
+- Keep virtual shard configuration at the default value
+### Shards
+
 A collection in Weaviate comprises of one or more "shards", which are the basic units of data storage and retrieval. A shard will contain its own vector index, inverted indexes, and object store. Each shard can be hosted on a different node, allowing for distributed data storage and processing.
 
 ![Shards explained](./img/shards_explained.png)
@@ -22,6 +45,37 @@ In a multi-tenant collection, each tenant consists of one shard. This means that
 
 ![Shards in collections](./img/shards_in_collections.png)
 
+### Replicas
+
+Weaviate implements a sophisticated replication architecture with several key features:
+
+- **Leaderless Replication Model**: Any node can accept read/write operations
+- **RAFT Consensus** for metadata management
+  - Uses leader-follower model for cluster metadata
+  - Automatic leader election and re-election
+  - Quorum-based changes
+
+Replicas provide multiple benefits:
+- High availability
+- Improved fault tolerance
+- Better read performance
+
+**Tunable Consistency Levels:**
+- `ONE`: Single replica acknowledgment
+- `QUORUM`: Majority of replicas must acknowledge
+- `ALL`: Every replica must acknowledge
+
+You can configure replication with async capabilities and custom deletion strategies:
+
+```python
+replication_config=Configure.replication(
+    factor=3,  # Number of replicas
+    async_enabled=True,  # Enable background replication
+    deletion_strategy=ReplicationDeletionStrategy.TIME_BASED_RESOLUTION
+)
+```
+
+You can set the replication factor globally using the [`REPLICATION_MINIMUM_FACTOR` environment variable](/docs/deploy/configuration/env-vars/index.md) or [per collection](/docs/weaviate/manage-collections/multi-node-setup.mdx#replication-settings).
 ### Replicas
 
 Depending on the setup, each shard can have one or more "replicas", to be hosted on different nodes. This is referred to as a "high availability" setup, where the same data is available on multiple nodes. This allows for better read throughput and fault tolerance.

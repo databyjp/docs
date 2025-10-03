@@ -18,6 +18,16 @@ import RaftRFChangeWarning from "/_includes/1-25-replication-factor.mdx";
 
 <RaftRFChangeWarning />
 
+Configure replication settings with advanced options for async replication and sophisticated deletion resolution strategies:
+
+- **Async Replication**: Enables background data synchronization across replicas
+  - Improves write performance by not waiting for all replicas to confirm
+  - Configurable frequency (default: 30 seconds) for checking data divergence
+
+- **Deletion Resolution Strategies**: Define how conflicts are handled during deletions
+  - `NoAutomatedResolution` (Default): Always restore deleted data
+  - `DeleteOnConflict`: Prioritize deletion across replicas
+  - `TimeBasedResolution`: Resolve conflicts using timestamp-based approach
 Configure replication settings, such as [async replication](/deploy/configuration/replication.md#async-replication-settings) and [deletion resolution strategy](../concepts/replication-architecture/consistency.md#deletion-resolution-strategies).
 
 <Tabs groupId="languages">
@@ -105,6 +115,29 @@ For details on the configuration parameters, see the following:
 
 ## Sharding settings
 
+Configure sharding per collection with careful consideration of your data characteristics and performance requirements:
+
+### Sharding Best Practices
+
+- **Shard Count Guidelines**:
+  - Create approximately one shard for every 100 million vectors
+  - Default to number of nodes in your cluster
+  - Avoid exceeding 50,000 active shards per node
+
+- **Virtual Shards**:
+  - Currently not actively utilized
+  - Recommended to keep default configuration (128 virtual shards per physical shard)
+
+- **Performance Considerations**:
+  - For multi-tenant environments, ensure balanced tenant data distribution
+  - Consider binary quantization for scenarios with many small tenant datasets
+
+### Sharding Configuration Parameters
+- `desiredCount`: Number of physical shards (default: number of nodes)
+- `virtualPerPhysical`: Virtual shard count (default: 128)
+- `key`: Currently supports only `_id`
+- `strategy`: Currently supports only `hash`
+- `function`: Currently supports only `murmur`
 Configure sharding per collection.
 
 <Tabs groupId="languages">
@@ -157,6 +190,44 @@ For details on the configuration parameters, see the following:
 
 - [Sharding](/weaviate/config-refs/collections.mdx#sharding)
 
+
+## Advanced Configuration Example
+
+Demonstrate a comprehensive configuration combining replication and sharding:
+
+<Tabs groupId="languages">
+  <TabItem value="py" label="Python">
+    <FilteredTextBlock
+      text={`
+# Comprehensive Weaviate Collection Configuration
+replication_config = Configure.replication(
+    factor=3,             # Number of replicas
+    async_enabled=True,   # Background replication
+    deletion_strategy=ReplicationDeletionStrategy.TIME_BASED_RESOLUTION
+)
+
+sharding_config = Configure.sharding(
+    desired_count=4,      # Number of physical shards
+    virtual_per_physical=128  # Virtual shard configuration
+)
+
+client.collections.create(
+    name="MyCollection",
+    vectorizer_config=vectorizer,
+    replication_config=replication_config,
+    sharding_config=sharding_config
+)`}
+      language="py"
+    />
+  </TabItem>
+</Tabs>
+
+### Configuration Recommendations
+
+- Use a minimum of 3 nodes for high availability
+- Set replication factor to 3 in production environments
+- Configure shards based on expected data size and write performance requirements
+- Enable async replication for improved performance
 </details>
 
 ## Inspect shards (for a collection)

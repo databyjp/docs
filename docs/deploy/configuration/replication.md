@@ -77,6 +77,59 @@ Update the following [environment variables](/deploy/configuration/env-vars/inde
 - **Monitor node availability:** `ASYNC_REPLICATION_ALIVE_NODES_CHECKING_FREQUENCY`
   Trigger comparisons whenever there’s a change in node availability.
 - **Configure hash tree height:** `ASYNC_REPLICATION_HASHTREE_HEIGHT`
+- **Set the size of the hash tree:** `ASYNC_REPLICATION_HASHTREE_HEIGHT`
+  Specify the size of the hash tree, which helps narrow down data differences by comparing hash digests at multiple levels instead of scanning entire datasets.
+
+  #### Memory Considerations for Hash Tree
+
+  The hash tree size is a trade-off between memory usage and asynchronous replication speed. Use this formula to estimate memory requirements:
+
+  ```
+  Memory Required ≈ 2^(H+1) * 16 bytes
+  ```
+
+  **Example Scenarios:**
+  - With a HashTree height of 16 (default):
+    - For a collection with 1,000 tenants, memory footprint would be approximately 2 GiB
+  - Increasing HashTree height to 20:
+    - Memory footprint would increase to approximately 32 GiB
+
+  > **Caution:** Increasing the hash tree height significantly increases memory consumption. Choose the height carefully based on your specific use case and available system resources.
+
+- **Batch size for digest comparison:** `ASYNC_REPLICATION_DIFF_BATCH_SIZE`
+  Define the number of objects whose digest (e.g., last update time) is compared between nodes before propagating actual objects.
+
+#### Data Synchronization Configuration
+
+Once differences between nodes are detected, Weaviate propagates outdated or missing data:
+
+- **Set the frequency of propagation:** `ASYNC_REPLICATION_FREQUENCY_WHILE_PROPAGATING`
+  After synchronization is completed on a node, temporarily adjust the data comparison frequency to the set value.
+- **Set propagation timeout:** `ASYNC_REPLICATION_PROPAGATION_TIMEOUT`
+  Optionally configure a timeout for how long to wait during propagation when a node is unresponsive.
+- **Set propagation delay:** `ASYNC_REPLICATION_PROPAGATION_DELAY`
+  Define a delay period to allow asynchronous write operations to reach all nodes before propagating new or updated objects.
+- **Batch size for data propagation:** `ASYNC_REPLICATION_PROPAGATION_BATCH_SIZE`
+  Define the number of objects that are sent in each synchronization batch during the propagation phase.
+- **Set propagation limits:** `ASYNC_REPLICATION_PROPAGATION_LIMIT`
+  Enforce a limit on the number of out-of-sync objects to be propagated per replication iteration.
+- **Set propagation concurrency:** `ASYNC_REPLICATION_PROPAGATION_CONCURRENCY`
+  Specify the number of concurrent workers that can send batches of objects to other nodes, allowing multiple propagation batches to be sent simultaneously.
+
+:::tip Performance Tuning
+Carefully adjust these settings based on your:
+- Cluster size
+- Network latency
+- Available system resources
+
+For high-traffic clusters:
+- Use smaller batch sizes
+- Set shorter timeouts
+
+For larger clusters:
+- Consider more conservative settings
+- Monitor performance and memory usage
+:::
   Specify the size of the hash tree, which helps narrow down data differences by comparing hash digests at multiple levels instead of scanning entire datasets. See [this page](/weaviate/concepts/replication-architecture/consistency.md#memory-and-performance-considerations-for-async-replication) for more information on the memory and performance considerations for async replication.
 - **Batch size for digest comparison:** `ASYNC_REPLICATION_DIFF_BATCH_SIZE`
   Define the number of objects whose digest (e.g., last update time) is compared between nodes before propagating actual objects.
