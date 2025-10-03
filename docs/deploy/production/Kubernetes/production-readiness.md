@@ -81,10 +81,39 @@ If you *do* identify gaps within your deployment, be sure to reach out to your S
 - [ ]  Is logging implemented?
     - [ ]  Are the collected logs stored centrally?
 - [ ]  Is metric collection enabled using Prometheus (or Alloy, DataDog, or another monitoring platform)?
+    - [ ]  Are Prometheus metrics configured with `PROMETHEUS_MONITORING_ENABLED=true`?
+    - [ ]  Are key performance metrics being tracked?
+        - CPU Usage: `container_cpu_usage_seconds_total`
+        - Memory Usage: `go_memstats_heap_inuse_bytes`, `container_memory_working_set_bytes`
+        - Disk I/O: `container_fs_writes_bytes_total`, `container_fs_reads_bytes_total`
+        - Query Performance: `queries_durations_ms_bucket`
+        - Batch Performance: `batch_durations_ms`
+        - Object Count: `object_count` (tracking vectors by collections)
+        - Tenant States: `weaviate_schema_shards`
+- [ ]  Are health and performance metrics being visualized in Grafana?
+- [ ]  Are alerts configured for critical events?
+    - [ ]  Out of Memory events
+    - [ ]  Weaviate restarts
+    - [ ]  Disk space utilization
+    - [ ]  High CPU usage
+
+### Metrics Monitoring Best Practices
+
+- Monitor slow queries by enabling `QUERY_SLOW_LOG_ENABLED` and setting appropriate `QUERY_SLOW_LOG_THRESHOLD`
+- Use Go profiling (`GO_PROFILING_DISABLE=false` and `GO_PROFILING_PORT`) for in-depth performance analysis
+    - CPU profiling: `go tool pprof http://localhost:6060/debug/pprof/profile`
+    - Memory profiling: `go tool pprof http://localhost:6060/debug/pprof/heap`
+- Regularly review and adjust monitoring thresholds to match workload characteristics
+- Implement notification strategies to minimize alert fatigue
+### Monitoring and Observability
+
+- [ ]  Is logging implemented?
+    - [ ]  Are the collected logs stored centrally?
+- [ ]  Is metric collection enabled using Prometheus (or Alloy, DataDog, or another monitoring platform)?
 - [ ]  Are health and performance metrics being visualized in Grafana?
 - [ ]  Are alerts configured for events?
 
-Evaluate these key areas to build a highly available, resilient, and efficient deployment that will scale to meet your business needs. By ensuring that these self-assessment questions have been addressed, you can proactively identify potential risks and maximize the reliability of your deployment. 
+Evaluate these key areas to build a highly available, resilient, and efficient deployment that will scale to meet your business needs. By ensuring that these self-assessment questions have been addressed, you can proactively identify potential risks and maximize the reliability of your deployment.
 
 ## Questions and feedback
 

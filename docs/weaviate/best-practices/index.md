@@ -102,7 +102,7 @@ If you have a large number of vectors, consider using vector quantization to red
 ![Overview of quantization schemes](../../../_includes/images/concepts/quantization_overview_light.png#gh-light-mode-only "Overview of quantization schemes")
 ![Overview of quantization schemes](../../../_includes/images/concepts/quantization_overview_dark.png#gh-dark-mode-only "Overview of quantization schemes")
 
-For HNSW indexes, we suggest enabling [rotational quantization (RQ)](../configuration/compression/rq-compression.md) as a starting point. It provides significant memory usage benefits and almost no loss in query accuracy. 
+For HNSW indexes, we suggest enabling [rotational quantization (RQ)](../configuration/compression/rq-compression.md) as a starting point. It provides significant memory usage benefits and almost no loss in query accuracy.
 
 import CompressionByDefault from '/_includes/compression-by-default.mdx';
 
@@ -326,6 +326,116 @@ At the moment, offloading tenants is only available in the open-source version o
 There is a performance overhead when instantiating a Weaviate client object, due to the I/O operations to establish a connection and perform health checks.
 
 Where possible, reuse the same client object for as many operations as you can. Generally, the client object is thread-safe and can be used in parallel across multiple threads.
+
+
+## Performance Monitoring & Profiling
+
+### Performance Monitoring Best Practices
+
+Proactive performance monitoring is crucial for maintaining the health and efficiency of your Weaviate deployment. By tracking key metrics and understanding system behavior, you can preemptively address potential performance bottlenecks.
+
+#### Key Metrics to Monitor
+
+- **CPU Usage**: Track processor utilization to ensure sufficient resources for queries
+  - Monitor `container_cpu_usage_seconds_total`
+  - Watch for sustained high CPU usage that might indicate inefficient queries
+
+- **Memory Consumption**: Prevent memory leaks and optimize resource allocation
+  - Track `go_memstats_heap_inuse_bytes`
+  - Monitor `container_memory_working_set_bytes`
+  - Use memory usage metrics to adjust resource configurations
+
+- **Query Performance**: Identify and optimize slow queries
+  - Track `queries_durations_ms_bucket`
+  - Monitor batch operation performance with `batch_durations_ms`
+  - Use slow query logging to capture detailed performance insights
+
+### Debugging Performance Issues
+
+#### Slow Query Logging
+
+Weaviate provides built-in mechanisms to trace and log slow queries, helping you identify performance bottlenecks:
+
+```bash
+# Enable slow query logging
+QUERY_SLOW_LOG_ENABLED=true
+QUERY_SLOW_LOG_THRESHOLD=50ms  # Log queries taking more than 50 milliseconds
+```
+
+Example slow query log output:
+```
+level=warning msg="Slow query detected"
+query=ObjectSearch
+shard=multitenant_tenantA
+took="61.917µs"
+```
+
+#### Performance Profiling with Go
+
+Utilize Go's profiling tools to perform in-depth performance analysis:
+
+```bash
+# CPU Profiling
+GO_PROFILING_DISABLE=false
+GO_PROFILING_PORT=6060
+
+# Generate CPU profile
+go tool pprof --http=:6061 http://localhost:6060/debug/pprof/profile?seconds=30
+
+# Memory Profiling
+go tool pprof -http=:6061 -lines http://localhost:6060/debug/pprof/heap
+```
+
+### Monitoring Configuration Best Practices
+
+1. **Set Appropriate Thresholds**
+   - Configure environment variables to customize resource usage warnings
+   ```bash
+   DISK_USE_WARNING_PERCENTAGE=80
+   DISK_USE_READONLY_PERCENTAGE=90
+   MEMORY_WARNING_PERCENTAGE=75
+   MEMORY_READONLY_PERCENTAGE=85
+   ```
+
+2. **Recommended Monitoring Tools**
+   - Prometheus for metrics collection
+   - Grafana for visualization and dashboarding
+   - Alertmanager for configuring performance alerts
+
+3. **Alert Configuration Example**
+   ```yaml
+   groups:
+     - name: weaviate-performance
+       rules:
+         - alert: HighCPUUsage
+           expr: rate(process_cpu_seconds_total[5m]) > 0.9
+           for: 2m
+           labels:
+             severity: warning
+           annotations:
+             summary: "High CPU Usage detected"
+             description: "CPU usage exceeded 90% for 2 minutes"
+   ```
+
+### Continuous Improvement
+
+- Regularly review and adjust monitoring strategies
+- Establish performance baselines for your specific use cases
+- Implement periodic performance audits
+
+:::tip Further Resources
+- [Monitoring Configuration Guide](/deploy/configuration/monitoring.md)
+- [Performance Optimization Concepts](/concepts/performance.md)
+:::
+
+### Troubleshooting Workflow
+
+1. Enable detailed logging and profiling
+2. Reproduce performance issues
+3. Capture profiles and logs
+4. Analyze resource consumption
+5. Optimize queries or adjust configurations
+6. Validate improvements
 
 If multiple client objects are absolutely necessary, consider skipping initial checks (e.g. [Python](../client-libraries/python/notes-best-practices.mdx#initial-connection-checks)). This can significantly reduce the overhead of instantiating multiple clients.
 
