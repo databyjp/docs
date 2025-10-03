@@ -16,6 +16,12 @@ To balance resource costs and system performance, consider one of these options:
 - **[Binary Quantization (BQ)](bq-compression.md)**
 - **[Scalar Quantization (SQ)](sq-compression.md)**
 
+## Rotational Quantization (RQ)
+
+Rotational Quantization is a compression technique that reduces vector size while maintaining high recall. It comes in two variants:
+- **8-bit RQ**: Provides 4x compression with 98-99% recall
+- **1-bit RQ**: Offers up to 32x compression with improved performance over Binary Quantization
+
 You can also [disable quantization](uncompressed.md) for a collection.
 
 import CompressionByDefault from '/_includes/compression-by-default.mdx';

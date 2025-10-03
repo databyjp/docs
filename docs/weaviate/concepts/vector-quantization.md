@@ -116,64 +116,46 @@ The size of the training set is configurable. The default is 100,000 objects per
 
 When SQ is enabled, Weaviate boosts recall by over-fetching compressed results. After Weaviate retrieves the compressed results, it compares the original, uncompressed vectors that correspond to the compressed result against the query. The second search is very fast because it only searches a small number of vectors rather than the whole database.
 
-## Rotational quantization
+## Rotational Quantization (RQ)
 
-:::info Added in `v1.32`
+Rotational Quantization is an advanced compression technique that provides significant memory reduction while maintaining high recall. RQ is available in two variants: 8-bit RQ and 1-bit RQ.
 
-**8-bit Rotational quantization (RQ)** was added in **`v1.32`**.
+### 8-bit Rotational Quantization
 
-:::
+8-bit RQ offers 4x compression with 98-99% recall in internal testing. The method works through:
+- Fast pseudorandom rotation using the Walsh Hadamard Transform
+- Scalar quantization of the rotated vector to 8-bit integers
+- Dimension rounding to the nearest multiple of 64
 
-:::caution Preview
+### 1-bit Rotational Quantization
 
-**1-bit Rotational quantization (RQ)** was added in **`v1.33`** as a **preview**.<br/>
+1-bit RQ provides close to 32x compression as dimensionality increases. Key characteristics include:
+- Asymmetric quantization method
+- Fast pseudorandom rotation
+- Data vectors quantized to 1 bit per dimension
+- Query vectors scalar quantized using 5 bits per dimension
 
-This means that the feature is still under development and may change in future releases, including potential breaking changes.
-**We do not recommend using this feature in production environments at this time.**
+#### Key Benefits
+- Faster encoding time compared to Product Quantization
+- Minimal performance trade-off (approximately 10% decrease in throughput)
+- Works well across different embedding models
+- No training phase required
 
-:::
+### RQ Characteristics
 
-**Rotational quantization (RQ)** is a quantization technique that provides significant compression while maintaining high recall in internal testing. Unlike SQ, RQ requires no training phase and can be enabled immediately at index creation. RQ is available in two variants: **8-bit RQ** and **1-bit RQ**.
+The rotation step provides multiple benefits:
+- Reduces quantization interval
+- Decreases quantization error by distributing values more uniformly
+- Distributes distance information evenly across dimensions
 
-### 8-bit RQ
+Compression rates and performance are affected by:
+- Auxiliary data storage (16 bytes for 8-bit RQ, 8 bytes for 1-bit RQ)
+- Dimension rounding to multiples of 64
+- Padding for 1-bit RQ to at least 256 bits
 
-8-bit RQ provides 4x compression while maintaining 98-99% recall in internal testing. The method works as follows:
-
-1. **Fast pseudorandom rotation**: The input vector is transformed using a fast rotation based on the Walsh Hadamard Transform. This rotation takes approximately 7-10 microseconds for a 1536-dimensional vector. The output dimension is rounded up to the nearest multiple of 64.
-
-2. **Scalar quantization**: Each entry of the rotated vector is quantized to an 8-bit integer. The minimum and maximum values of each individual rotated vector define the quantization interval.
-
-### 1-bit RQ
-
-1-bit RQ is an asymmetric quantization method that provides close to 32x compression as dimensionality increases. **1-bit RQ serves as a more robust and accurate alternative to BQ** with only a slight performance trade-off (approximately 10% decrease in throughput in internal testing compared to BQ). While more performant than PQ in terms of encoding time and distance calculations, 1-bit RQ typically offers slightly lower recall than well-tuned PQ.
-
-The method works as follows:
-
-1. **Fast pseudorandom rotation**: The same rotation process as 8-bit RQ is applied to the input vector. For 1-bit RQ, the output dimension is always padded to at least 256 bits to improve performance on low-dimensional data.
-
-2. **Asymmetric quantization**:
-   - **Data vectors**: Quantized using 1 bit per dimension by storing only the sign of each entry
-   - **Query vectors**: Scalar quantized using 5 bits per dimension during search
-
-<!-- TODO[g-despot]: Clarify how 5 bit search vectors are compared to 1 bit -->
-
-This asymmetric approach improves recall compared to symmetric 1-bit schemes (such as BQ) by using more precision for query vectors during distance calculation. On datasets well-suited for BQ (like OpenAI embeddings), 1-bit RQ essentially matches BQ recall. It also works well on datasets where BQ performs poorly (such as [SIFT](https://arxiv.org/abs/2504.09081)).
-
-### RQ characteristics
-
-The rotation step provides multiple benefits. It tends to reduce the quantization interval and decrease quantization error by distributing values more uniformly. It also distributes the distance information more evenly across all dimensions, providing a better starting point for distance estimation.
-
-Both RQ variants round up the number of dimensions to multiples of 64, which means that low-dimensional data (< 64 or 128 dimensions) might result in less than optimal compression. Additionally, several factors affect the actual compression rates:
-
-- **Auxiliary data storage**: 16 bytes for 8-bit RQ and 8 bytes for 1-bit RQ are stored with the compressed codes
-- **Dimension rounding**: Dimensionality is rounded up to the nearest multiple of 64 and 1-bit RQ is also padded to at least 256 bits
-
-Due to these factors, the 4x and 32x compression rates are only approached as dimensionality increases. These effects are more pronounced for low-dimensional vectors.
-
-While inspired by extended [RaBitQ](https://arxiv.org/abs/2405.12497), this implementation differs significantly for performance reasons. It uses fast pseudorandom rotations instead of truly random rotations.
 :::tip
 
-Learn more about how to [configure rotational quantization](../configuration/compression/rq-compression.md) in Weaviate or dive deer into the [implementation details and theoretical background](https://weaviate.io/blog/8-bit-rotational-quantization).
+Learn more about how to [configure rotational quantization](../configuration/compression/rq-compression.md) in Weaviate or dive deeper into the [implementation details and theoretical background](https://weaviate.io/blog/8-bit-rotational-quantization).
 
 :::
 
@@ -187,6 +169,9 @@ The query retrieves compressed objects until the object count reaches whichever 
 
 For example, if a query is made with a limit of 10, and a rescore limit of 200, Weaviate fetches 200 objects. After rescoring, the query returns top 10 objects. This process offsets the loss in search quality (recall) that is caused by compression.
 
+:::note RQ Optimization
+With RQ's high native recall of 98-99%, you can often disable rescoring (set `rescoreLimit` to 0) for maximum query performance with minimal impact on search quality. This is particularly true for the 8-bit RQ variant.
+:::
 :::note RQ optimization
 With RQ's high native recall of 98-99%, you can often disable rescoring (set `rescoreLimit` to 0) for maximum query performance with minimal impact on search quality.
 :::

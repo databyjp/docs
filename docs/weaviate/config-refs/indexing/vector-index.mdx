@@ -71,7 +71,7 @@ Note that some database-level parameters are available to configure HNSW indexin
 
   Preferably, the `PERSISTENCE_HNSW_MAX_LOG_SIZE` should set to a value close to the size of the HNSW graph.
 
-- [`DEFAULT_QUANTIZATION`](/deploy/configuration/env-vars/index.md#DEFAULT_QUANTIZATION) is a database-level parameter that defines which quantization technique will be used by default when creating new collections. 
+- [`DEFAULT_QUANTIZATION`](/deploy/configuration/env-vars/index.md#DEFAULT_QUANTIZATION) is a database-level parameter that defines which quantization technique will be used by default when creating new collections.
 
 ### Tombstone cleanup parameters
 
@@ -172,9 +172,10 @@ The goal of `dynamic` indexing is to shorten latencies during query time at the 
 
 The following parameters are available for RQ compression, under `vectorIndexConfig`:
 
-import RQParameters from "/_includes/configuration/rq-compression-parameters.mdx";
-
-<RQParameters />
+| Parameter            | Type    | Default | Details                                                                                                                                                                                   |
+| :------------------- | :------ | :------ | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rq`: `bits`         | integer | `8`     | The number of bits used to quantize each data point. Options are `8` (recommended) or `1`. Different bit depths provide varying compression and performance characteristics.               |
+| `rq`: `rescoreLimit` | integer | `-1`    | The minimum number of candidates to fetch before rescoring. For RQ, you can often set this to 0 due to high native recall, maximizing query performance with minimal quality degradation. |
 
 ### SQ parameters
 
@@ -205,7 +206,12 @@ import BQParameters from "/_includes/configuration/bq-compression-parameters.mdx
 :::info Added in `v1.33`
 :::
 
-Starting with Weaviate v1.33, **[8-bit Rotational Quantization (RQ)](../../configuration/compression/rq-compression.md) is enabled by default for all new collections**. This automatic optimization provides up to 4x memory compression and faster query performance while maintaining high recall accuracy. Existing collections (for example restored from backups) are not affected and retain their original configuration.
+Starting with Weaviate v1.33, **[8-bit Rotational Quantization (RQ)](../../configuration/compression/rq-compression.md) is enabled by default for all new collections**. This automatic optimization provides:
+- Up to 4x memory compression
+- Faster query performance
+- High recall accuracy (98-99%)
+
+Existing collections (for example restored from backups) are not affected and retain their original configuration.
 
 Set the [`DEFAULT_QUANTIZATION` environment variable](/docs/deploy/configuration/env-vars/index.md#DEFAULT_QUANTIZATION) before starting Weaviate to change the default quantization technique or to disable it.
 
