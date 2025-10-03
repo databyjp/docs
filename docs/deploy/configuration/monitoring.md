@@ -130,11 +130,85 @@ to obtain the metric for the entire Weaviate instance.
 | `weaviate_internal_timer_raft_leader_dispatchLog` | Time required for the leader node to write a log entry to disk. | `quantile=0.5, 0.9, 0.99` | `Summary` |
 | `weaviate_usage_{gcs\|s3}_operations_total` | Total number of operations for module labels | `operation`: collect/upload, `status`: success/error | `Counter` |
 | `weaviate_usage_{gcs\|s3}_operation_latency_seconds` | Latency of usage operations in seconds | `operation`: collect/upload | `Histogram` |
+
+## Recommended Alerts
+
+### Understanding Prometheus Alert Rules
+
+A typical Prometheus alert rule consists of several key components:
+
+```yaml
+groups:
+  - name: weaviate-alerts
+    rules:
+      - alert: HighCPUUsage          # Descriptive alert name
+        expr: rate(process_cpu_seconds_total[5m]) > 0.9  # Evaluation expression
+        for: 2m                      # Duration threshold
+        labels:
+          severity: high             # Classification of alert
+        annotations:
+          summary: "High CPU Usage"  # Short description
+          description: "CPU usage has exceeded 90% for 2 minutes"  # Detailed explanation
+```
+
+#### Alert Rule Breakdown
+- `expr`: Defines the condition for triggering the alert
+- `for`: Ensures the condition persists for a specified duration
+- `labels`: Add metadata for routing and filtering
+- `annotations`: Provide human-readable context
+
+### Best Practices for Configuring Alerts
+
+1. **Threshold Selection**
+   - Start with conservative thresholds
+   - Adjust based on your specific workload and infrastructure
+   - Consider both absolute values and percentage-based metrics
+
+2. **Alert Granularity**
+   - Create alerts for different severity levels
+   - Use labels to route alerts to appropriate teams
+
+3. **Avoid Alert Fatigue**
+   - Set meaningful thresholds that indicate genuine issues
+   - Use dampening periods to prevent multiple notifications
+   - Regularly review and tune alert conditions
+
+### Example Production Alerts
+
+- **Out of Memory**: Detect container restarts due to memory constraints
+- **High Disk Usage**: Monitor persistent volume capacity
+- **Weaviate Restarts**: Track unexpected service interruptions
+- **Resource Saturation**: Identify performance degradation before complete failure
 | `weaviate_usage_{gcs\|s3}_resource_count` | Number of resources tracked by module | `resource_type`: collections/shards/backups | `Gauge` |
 | `weaviate_usage_{gcs\|s3}_uploaded_file_size_bytes` | Size of the uploaded usage file in bytes | NA | `Gauge` |
 
+## Best Practices for Monitoring
 
-Extending Weaviate with new metrics is very easy. To suggest a new metric, see the [contributor guide](/contributor-guide).
+1. **Dashboard Design**
+   - Implement comprehensive dashboards covering key performance indicators
+   - Customize dashboards to your specific use case and context
+   - Include visualizations for:
+     * Resource utilization
+     * Query performance
+     * System health metrics
+
+2. **Alert Configuration**
+   - Regularly review and update alert thresholds
+   - Create alerts with meaningful, actionable information
+   - Avoid alert fatigue by setting precise conditions
+   - Use severity levels to prioritize notifications
+
+3. **Continuous Improvement**
+   - Periodically reassess monitoring strategy
+   - Adapt dashboards as your system evolves
+   - Conduct post-incident reviews to refine monitoring approaches
+
+4. **Notification Management**
+   - Configure smart routing for alerts
+   - Use escalation policies for critical issues
+   - Integrate with incident management tools
+
+> **Remember**: Effective monitoring is an ongoing process of refinement and adaptation.
 
 ### Versioning
 
@@ -157,7 +231,73 @@ your uses perfectly:
 | [LSM Stores](https://github.com/weaviate/weaviate/blob/master/tools/dev/grafana/dashboards/lsm.json)                          | Get insights into the internals (including segments) of the various LSM stores within Weaviate                          | ![LSM Store](./img/weaviate-sample-dashboard-lsm.png 'LSM Store')                                                  |
 | [Startup](https://github.com/weaviate/weaviate/blob/master/tools/dev/grafana/dashboards/startup.json)                         | Visualize the startup process, including recovery operations                                                            | ![Startup](./img/weaviate-sample-dashboard-startup.png 'Vector Index')                                             |
 | [Usage](https://github.com/weaviate/weaviate/blob/master/tools/dev/grafana/dashboards/usage.json)                             | Obtain usage metrics, such as number of objects imported, etc.                                                          | ![Usage](./img/weaviate-sample-dashboard-usage.png 'Usage')                                                        |
+
+## Query Performance Debugging
+
+To help diagnose slow queries, Weaviate provides a built-in slow query logging mechanism. You can enable this feature using the following environment variables:
+
+- `QUERY_SLOW_LOG_ENABLED`: Enables logging of slow queries
+- `QUERY_SLOW_LOG_THRESHOLD`: Sets the time threshold for what constitutes a slow query
+
+When a query exceeds the specified threshold, Weaviate will log detailed information about the query. Here's an example of a slow query log:
+
+```
+level=warning msg="Slow query detected (0s)" ...
+keyword_ranking="<nil>" limit=100
+query=ObjectSearch shard=multitenant_tenantA
+sort="[]" tenant=tenantA
+took="61.917µs"
+```
+
+### How to Use Slow Query Logs
+
+1. Enable slow query logging by setting `QUERY_SLOW_LOG_ENABLED=true`
+2. Set an appropriate `QUERY_SLOW_LOG_THRESHOLD` to capture queries that are genuinely slow for your use case
+3. Monitor your logs to identify:
+   - Queries taking longer than expected
+   - Specific shards or tenants with performance issues
+   - Potential optimization opportunities
+
+> **Tip**: Start with a relatively high threshold and gradually lower it as you understand your system's performance characteristics.
 | [Aysnc index queue](https://github.com/weaviate/weaviate/blob/main/tools/dev/grafana/dashboards/index_queue.json)             | Observe index queue activity                                                                                            | ![Async index queue](./img/weaviate-sample-dashboard-async-queue.png 'Async index queue')                          |
+
+## Performance Profiling
+
+Weaviate supports advanced performance profiling using Go's built-in profiling tools. You can enable profiling with the following environment variables:
+
+- `GO_PROFILING_DISABLE`: Enable/disable profiling (default is false)
+- `GO_PROFILING_PORT`: Set a custom port for the profiling endpoint (default is 6060)
+
+### Profiling Techniques
+
+#### CPU Profiling
+```bash
+# Collect a 30-second CPU profile
+go tool pprof --http=:6061 http://localhost:6060/debug/pprof/profile\?seconds\=30
+
+# Analyze a saved profile
+go tool pprof --http=:6061 profile002.pb.gz
+```
+
+#### Memory Profiling
+```bash
+# Collect heap profile
+go tool pprof -http=:6061 -lines http://localhost:6060/debug/pprof/heap
+
+# Remote memory profiling
+go tool pprof -proto http://localhost:6060/debug/pprof/profile\?seconds\=10
+```
+
+### Best Practices
+- Use profiling sparingly in production environments
+- Collect profiles during representative workloads
+- Compare profiles over time to track performance changes
+- Look for:
+  - High CPU usage functions
+  - Memory allocation patterns
+  - Potential bottlenecks
+
+> **Note**: Profiling can have a performance overhead, so use it judiciously.
 
 ## `nodes` API Endpoint
 
@@ -171,4 +311,35 @@ import APIOutputs from '/_includes/rest/node-endpoint-info.mdx';
 
 import DocsFeedback from '/_includes/docs-feedback.mdx';
 
+
+## Resource Starvation Impact
+
+Resource constraints can significantly impact Weaviate's performance and stability. Understanding these impacts is crucial for maintaining a healthy system.
+
+### Disk Resource Constraints
+
+- **Automatic Read-Only Mode**: Shards will switch to read-only when disk usage reaches 90% (configurable via `DISK_USE_READONLY_PERCENTAGE`)
+- **Performance Degradation**: IO/s saturation leads to increased read and write request latency
+
+### Memory Constraints
+
+- **Out of Memory (OOM) Risk**: Pods may crash, potentially entering an infinite restart loop
+- **Cache Inefficiency**: Insufficient memory can lead to frequent cache evictions
+
+### CPU Limitations
+
+- **Increased Latency**: Significant CPU constraints result in higher read and write request times
+- **Query Performance**: CPU-starved environments can cause timeouts and reduced throughput
+
+### Proactive Monitoring Strategies
+
+1. **Early Detection**: Monitor resource usage before critical thresholds are reached
+2. **Set Up Comprehensive Alerts**: Create alerts for:
+   - Disk usage approaching 80-90%
+   - Memory usage above 85%
+   - Sustained high CPU utilization
+3. **Regular Performance Reviews**: Conduct periodic assessments of resource consumption
+4. **Capacity Planning**: Anticipate growth and scale resources proactively
+
+> **Key Principle**: Monitor your system before resource constraints impact user experience.
 <DocsFeedback/>
