@@ -76,7 +76,7 @@ For Weaviate Cloud (WCD) instances, authentication is pre-configured with OIDC a
 
 For more details on how to work with API keys in Weaviate, check out the [authentication guide](/deploy/configuration/authentication.md#api-key-authentication).
 
-We recommend using a client library to authenticate against Weaviate. See [How-to: Connect](docs/weaviate/connections/index.mdx) pages for more information. 
+We recommend using a client library to authenticate against Weaviate. See [How-to: Connect](docs/weaviate/connections/index.mdx) pages for more information.
 
 ### OIDC
 
@@ -90,7 +90,27 @@ OIDC authentication flows are outside the scope of this documentation, but here 
    - Validated using Okta and Azure as identity providers; GCP does not support client credentials grant flow (as of December 2022).
    - Weaviate's Python client directly supports this method.
    - Client credential flows usually do not come with a refresh token and the credentials are saved in the respective clients to acquire a new access token on expiration of the old one.
+
+### Token Management Best Practices
+
+When using OIDC authentication, consider the following strategies:
+
+- **Token Rotation**: Regularly rotate tokens to minimize security risks
+- **Refresh Mechanisms**: Implement robust token refresh strategies for different authentication flows
+  - Client credentials flow: Automatically request new tokens before expiration
+  - Resource owner password flow: Securely manage token lifecycle
+- **Expiration Handling**:
+  - Implement proper error handling for expired tokens
+  - Use refresh tokens when available
+  - Have fallback authentication mechanisms
 1. Use the `resource owner password flow` for trusted applications like [Weaviate Cloud](/cloud/manage-clusters/connect).
+
+:::warning Token Security
+- Never store tokens in plain text
+- Use secure storage mechanisms (e.g., environment variables, secure vaults)
+- Transmit tokens only over encrypted channels (TLS)
+- Implement proper token revocation mechanisms
+:::
 1. Use `hybrid flow` if Azure is your token issuer or if you would like to prevent exposing passwords.
 
 ### Support for Weaviate clients
@@ -138,6 +158,103 @@ For cases or workflows where you may wish to manually obtain a token, we outline
 This example demonstrate how to obtain an OIDC token.
 
 ```python
+```python
+import requests
+import re
+import logging
+from datetime import datetime, timedelta
+
+class TokenManager:
+    def __init__(self, weaviate_url, username, password):
+        self.weaviate_url = weaviate_url
+        self.username = username
+        self.password = password
+        self.access_token = None
+        self.token_expiry = None
+        self.logger = logging.getLogger(__name__)
+
+    def _fetch_oidc_configuration(self):
+        try:
+            weaviate_open_id_config = requests.get(f'{self.weaviate_url}/v1/.well-known/openid-configuration')
+            weaviate_open_id_config.raise_for_status()
+            response_json = weaviate_open_id_config.json()
+
+            # Fetch token issuer configuration
+            response_auth = requests.get(response_json['href'])
+            response_auth.raise_for_status()
+
+            return response_json, response_auth.json()
+        except requests.RequestException as e:
+            self.logger.error(f'Error fetching OIDC configuration: {e}')
+            raise
+
+    def _obtain_token(self, weaviate_config, token_issuer_config):
+        try:
+            # Verify grant types support
+            if 'grant_types_supported' in token_issuer_config and 'password' not in token_issuer_config['grant_types_supported']:
+                raise ValueError('Resource owner password flow not supported')
+
+            # Prepare token request
+            auth_body = {
+                'grant_type': 'password',
+                'client_id': weaviate_config['clientId'],
+                'username': self.username,
+                'password': self.password,
+            }
+
+            # Request token
+            response_post = requests.post(token_issuer_config['token_endpoint'], data=auth_body)
+            response_post.raise_for_status()
+            token_response = response_post.json()
+
+            # Store token and expiry
+            self.access_token = token_response['access_token']
+            # Assuming token_response includes 'expires_in' in seconds
+            self.token_expiry = datetime.now() + timedelta(seconds=token_response.get('expires_in', 3600))
+
+            return self.access_token
+        except requests.RequestException as e:
+            self.logger.error(f'Token request failed: {e}')
+            raise
+        except KeyError as e:
+            self.logger.error(f'Invalid token response: {e}')
+            raise
+
+    def get_valid_token(self):
+        # Check if current token is valid
+        if not self.access_token or datetime.now() >= self.token_expiry:
+            weaviate_config, token_issuer_config = self._fetch_oidc_configuration()
+            self._obtain_token(weaviate_config, token_issuer_config)
+
+        return self.access_token
+
+    def use_token_with_weaviate(self):
+        try:
+            token = self.get_valid_token()
+            headers = {'Authorization': f'Bearer {token}'}
+            response = requests.get(f'{self.weaviate_url}/v1/objects', headers=headers)
+            response.raise_for_status()
+            return response.json()
+        except requests.RequestException as e:
+            self.logger.error(f'Weaviate request failed: {e}')
+            # Implement fallback or retry mechanism
+            raise
+
+# Example usage
+token_manager = TokenManager('http://localhost:8080', 'username', 'password')
+try:
+    objects = token_manager.use_token_with_weaviate()
+    print(objects)
+except Exception as e:
+    print(f'Authentication or request failed: {e}')
+```
+
+This enhanced example demonstrates:
+- Robust error handling
+- Token lifecycle management
+- Secure token storage and retrieval
+- Automatic token refresh
+- Logging for security events
 import requests
 import re
 

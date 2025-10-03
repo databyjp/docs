@@ -6,6 +6,17 @@ hide_table_of_contents: true
 # tags: ['configuration']
 ---
 
+## Security Overview
+
+Weaviate provides a comprehensive security framework designed to protect your vector search data. Our approach focuses on:
+- Robust authentication mechanisms
+- Granular access control
+- Secure token management
+- Compliance with industry standards
+
+Choose the right configuration to match your security requirements.
+
+
 Configure and manage key operational aspects of your Weaviate instance with these guides:
 
 import CardsSection from "/src/components/CardsSection";
@@ -26,19 +37,18 @@ export const configOpsData = [
     icon: "fas fa-puzzle-piece",
   },
   {
-    title: "Authentication and authorization",
-    description:
-      "Set up methods to authenticate and to verify user identities before granting access.",
-    link: "/weaviate/configuration/authz-authn",
-    icon: "fas fa-key",
+  {
+    title: 'Authentication and authorization',
+    description: 'Secure your Weaviate instance with robust authentication methods, including OIDC, API keys, and fine-grained access control.',
+    link: '/weaviate/configuration/authz-authn',
+    icon: 'fas fa-key',
   },
   {
-    title: "RBAC",
-    description:
-      "Learn about Role-Based Access Control concepts, predefined/custom roles, and permissions.",
-    link: "/weaviate/configuration/rbac",
-    icon: "fas fa-user-shield",
-  },
+    title: 'RBAC',
+    description: 'Implement Role-Based Access Control with customizable roles, granular permissions, and secure token management strategies.',
+    link: '/weaviate/configuration/rbac',
+    icon: 'fas fa-user-shield',
+  }
 ];
 
 <br />
