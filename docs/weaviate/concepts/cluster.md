@@ -105,6 +105,29 @@ A shard replica can be moved or copied from one node to another. This is useful 
 
 3. **Node Maintenance or Replacement**: If a node requires maintenance (e.g., hardware upgrades) or replacement, shard replicas can be moved to temporary or replacement nodes to ensure continuous availability during the maintenance window.
 
+## Resharding in Multi-Node Clusters
+
+Resharding is a dynamic process that allows administrators to redistribute data across nodes in a multi-node Weaviate cluster without downtime. This feature enables you to adjust the number of shards in a cluster, providing greater flexibility in managing your data distribution and cluster performance.
+
+### How Resharding Works
+
+When a resharding operation is initiated, Weaviate creates new shard mappings and migrates vector embeddings and metadata in batches. The distributed hash ring is updated to reflect the new topology, ensuring minimal disruption to existing operations.
+
+### Key Capabilities
+
+- **Automatic Load Balancing**: Prevents node overload during migration by intelligently distributing data
+- **Configurable Migration**: Control batch sizes and migration speed to match your infrastructure's capabilities
+- **Data Integrity**: Real-time consistency checks ensure no data is lost during the process
+- **Rollback Support**: If a migration encounters issues, you can roll back to the previous state
+- **Progress Monitoring**: Dedicated endpoints allow tracking of resharding operations in real-time
+
+### Typical Use Cases
+
+Resharding is particularly useful in scenarios such as:
+- Scaling your cluster to handle increased data or query loads
+- Rebalancing data after adding or removing nodes
+- Optimizing data distribution for improved query performance across your cluster
+
 ## Node Discovery
 
 By default, Weaviate nodes in a cluster use a gossip-like protocol through [Hashicorp's Memberlist](https://github.com/hashicorp/memberlist) to communicate node state and failure scenarios.

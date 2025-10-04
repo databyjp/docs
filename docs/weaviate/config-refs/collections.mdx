@@ -486,7 +486,7 @@ Using the `vectorConfig` parameter allows you to start with one vector per colle
 | [↪ `vectorConfig.<name>.vectorIndexType`](./indexing/vector-index.mdx)   | String | Index type for this named vector                                                                                                                              | `hnsw`                  | No            |
 | [↪ `vectorConfig.<name>.vectorIndexConfig`](./indexing/vector-index.mdx) | Object | Index configuration for this named vector                                                                                                                     | Index-specific defaults | Partially\*   |
 
-\* See [vector index mutable parameters](./indexing/vector-index.mdx)  
+\* See [vector index mutable parameters](./indexing/vector-index.mdx)
 \*\* [New named vectors can be added](../manage-collections/vector-config.mdx#add-new-named-vectors) after collection creation
 
 #### Single vector collections
@@ -705,6 +705,11 @@ For more code example and configuration guides visit the [How-to: Manage collect
 
 ### Sharding
 
+Sharding is configured via the `shardingConfig` object in the collection definition. These parameters are immutable and cannot be changed after the collection is created.
+
+:::note Resharding Support
+Starting in this version, Weaviate supports dynamic resharding through the `/v1/cluster/resharding` API endpoint. This allows you to redistribute data across nodes without downtime, providing greater flexibility in cluster management.
+:::
 Sharding is configured via the `shardingConfig` object in the collection definition. These parameters are immutable and cannot be changed after the collection is created.
 
 | Parameter             | Type    | Description                                                                                                                                               | Default         | Mutable |

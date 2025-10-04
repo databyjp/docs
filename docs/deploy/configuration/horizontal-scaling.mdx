@@ -35,6 +35,18 @@ Replication creates redundant copies of your data, it is useful when your data n
 
 Sharding divides data across nodes, it is useful when your dataset is too large for just a single node.
 
+
+
+#### Dynamic Resharding
+
+With the introduction of dynamic resharding, you can now redistribute data across nodes without downtime. This feature allows you to:
+- Adjust the number of shards in an existing cluster
+- Optimize data distribution dynamically
+- Maintain performance during scaling operations
+
+:::tip
+Use the new resharding feature to fine-tune your cluster's data distribution as your workload evolves.
+:::
 ![sharding](./img/weaviate-blog-sharding.png)
 
 

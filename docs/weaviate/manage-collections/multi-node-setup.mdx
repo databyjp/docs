@@ -200,6 +200,86 @@ You can manually update a shard to change it's status. For example, update the s
 
 import CodeSchemaShardsUpdate from "/_includes/code/howto/manage-data.shards.update.mdx";
 
+
+## Cluster Resharding
+
+Weaviate allows you to dynamically redistribute data across nodes using the resharding feature. This enables you to optimize your cluster's performance and scalability without downtime.
+
+### Triggering Resharding
+
+Resharding can be initiated through the `/v1/cluster/resharding` API endpoint or through client library functions. The exact implementation may vary by client library.
+
+<Tabs groupId="languages">
+  <TabItem value="py" label="Python Client v4">
+
+```python
+# [!NOTE] This code block is a placeholder and is not yet implemented.
+client.cluster.resharding(
+    collection_name='MyCollection',
+    target_shard_count=10,
+    migration_speed='moderate',
+    validation='strict'
+)
+```
+  </TabItem>
+
+  <TabItem value="py3" label="Python Client v3">
+
+```python
+# [!NOTE] This code block is a placeholder and is not yet implemented.
+# Placeholder for Python Client v3 implementation
+```
+  </TabItem>
+
+  <TabItem value="js" label="JS/TS Client v3">
+
+```typescript
+// [!NOTE] This code block is a placeholder and is not yet implemented.
+// Placeholder for JS/TS Client v3 implementation
+```
+  </TabItem>
+
+  <TabItem value="java" label="Java">
+
+```java
+// [!NOTE] This code block is a placeholder and is not yet implemented.
+// Placeholder for Java implementation
+```
+  </TabItem>
+
+  <TabItem value="go" label="Go">
+
+```go
+// [!NOTE] This code block is a placeholder and is not yet implemented.
+// Placeholder for Go implementation
+```
+  </TabItem>
+</Tabs>
+
+### Resharding Characteristics
+
+- Resharding is an asynchronous operation that redistributes data across nodes
+- Provides automatic load balancing during migration to prevent node overload
+- Configurable batch sizes and migration speed throttling
+- Real-time consistency checks to ensure data integrity
+- Rollback support in case of migration failures
+
+### Operational Considerations
+
+- During resharding, read operations continue normally
+- Write operations are temporarily queued and replayed after migration completes
+- Typical use cases include:
+  - Scaling up clusters under heavy load
+  - Rebalancing after node additions/removals
+  - Optimizing shard distribution for query performance patterns
+
+:::tip Monitoring
+Use the dedicated monitoring endpoints to track resharding progress and ensure a smooth transition.
+:::
+
+### API Endpoint
+
+The resharding operation can be triggered via the `/v1/cluster/resharding` REST API endpoint. Refer to the [API documentation](/weaviate/api/rest) for detailed parameter specifications.
 <CodeSchemaShardsUpdate />
 
 ## Further resources
